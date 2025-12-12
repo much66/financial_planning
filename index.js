@@ -1,29 +1,35 @@
-import React, { useState, useMemo } from 'react';
-import { RefreshCw, TrendingUp, DollarSign, Calendar, ArrowRight, AlertCircle, CheckCircle, Edit3 } from 'lucide-react';
+// --- 1. KITA GANTI IKON LUCIDE DENGAN KOMPONEN EMOJI BIASA ---
+// Agar tidak error karena tidak ada build tools
+const Icon = ({ name }) => {
+  const icons = {
+    refresh: "🔄",
+    trend: "📈",
+    dollar: "💰",
+    calendar: "📅",
+    arrow: "➡️",
+    alert: "⚠️",
+    check: "✅",
+    edit: "✏️"
+  };
+  return <span style={{ marginRight: '8px', fontSize: '1.2em' }}>{icons[name] || ""}</span>;
+};
+
+// --- 2. KODE UTAMA ANDA (SAYA SESUAIKAN DIKIT) ---
 
 const MonthlyFinancialModel = () => {
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = React.useState('dashboard');
 
-  // --- 1. INITIAL ASSUMPTIONS (INPUTS) ---
-  const [inputs, setInputs] = useState({
-    // Revenue & Growth
-    baseRevenue: 800, // Jan Revenue (Juta IDR)
-    monthlyGrowth: 2, // % growth per month
-    
-    // Costs
-    cogsPct: 60, // %
-    opexFixed: 150, // Fixed per month (Rent, Salary)
-    opexVarPct: 5, // Variable per month (% of sales)
-    
-    // Financials
-    taxRate: 22, // %
-    annualInterestRate: 12, // % per year
-    
-    // Working Capital (CRITICAL FOR RETAIL)
-    dsi: 60, // Days Sales Inventory
-    dpo: 45, // Days Payable Outstanding
-    
-    // Opening Balance (Dec Previous Year)
+  // --- INITIAL ASSUMPTIONS (INPUTS) ---
+  const [inputs, setInputs] = React.useState({
+    baseRevenue: 800, 
+    monthlyGrowth: 2, 
+    cogsPct: 60, 
+    opexFixed: 150, 
+    opexVarPct: 5, 
+    taxRate: 22, 
+    annualInterestRate: 12, 
+    dsi: 60, 
+    dpo: 45, 
     startCash: 200,
     startInventory: 400,
     startFixedAssets: 5000,
@@ -32,9 +38,7 @@ const MonthlyFinancialModel = () => {
     startRetainedEarnings: 0 
   });
 
-  // State untuk menyimpan manual override revenue per bulan
-  // Format: { 1: 850, 4: 1200 } -> Bulan 1 jadi 850, Bulan 4 jadi 1200
-  const [revenueOverrides, setRevenueOverrides] = useState({});
+  const [revenueOverrides, setRevenueOverrides] = React.useState({});
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -45,7 +49,7 @@ const MonthlyFinancialModel = () => {
     setRevenueOverrides(prev => {
       const newOverrides = { ...prev };
       if (val === '' || val === null) {
-        delete newOverrides[month]; // Hapus override jika kosong, kembali ke rumus
+        delete newOverrides[month]; 
       } else {
         newOverrides[month] = parseFloat(val);
       }
@@ -53,11 +57,10 @@ const MonthlyFinancialModel = () => {
     });
   };
 
-  // --- 2. CALCULATION ENGINE ---
-  const monthlyData = useMemo(() => {
+  // --- CALCULATION ENGINE ---
+  const monthlyData = React.useMemo(() => {
     let data = [];
     
-    // Initial State (Month 0 / Dec Prev Year)
     let prev = {
       rev: 0,
       inventory: inputs.startInventory,
@@ -70,9 +73,6 @@ const MonthlyFinancialModel = () => {
     };
 
     for (let m = 1; m <= 12; m++) {
-      // --- A. INCOME STATEMENT ---
-      
-      // LOGIC REVENUE BARU: Cek override dulu, kalau gak ada pakai rumus
       let rev;
       if (revenueOverrides[m] !== undefined) {
         rev = revenueOverrides[m];
@@ -93,7 +93,6 @@ const MonthlyFinancialModel = () => {
       const tax = ebt > 0 ? ebt * (inputs.taxRate / 100) : 0;
       const netIncome = ebt - tax;
 
-      // --- B. BALANCE SHEET (Non-Cash) ---
       const inventory = (cogs / 30) * inputs.dsi;
       const ap = (cogs / 30) * inputs.dpo;
       const fixedAssets = prev.fixedAssets - depr; 
@@ -101,7 +100,6 @@ const MonthlyFinancialModel = () => {
       const debt = inputs.startDebt;
       const equity = inputs.startEquity;
 
-      // --- C. CASH FLOW ---
       const cfo_ni = netIncome;
       const cfo_depr = depr;
       const cfo_inv = -(inventory - prev.inventory);
@@ -114,7 +112,6 @@ const MonthlyFinancialModel = () => {
       const netChange = cfo_total + cfi + cff;
       const endCash = prev.cash + netChange;
 
-      // Store current month data
       const monthObj = {
         month: m,
         name: `Bulan ${m}`,
@@ -129,38 +126,40 @@ const MonthlyFinancialModel = () => {
     }
 
     return data;
-  }, [inputs, revenueOverrides]); // Dependency nambah revenueOverrides
+  }, [inputs, revenueOverrides]); 
 
-  // Format Helper
   const fmt = (n) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
 
+  // --- STYLING MENGGUNAKAN TAILWIND (Pastikan CDN Tailwind ada atau pakai style manual) ---
+  // Karena kita pakai CDN React, class Tailwind mungkin tidak jalan kalau tidak ada link CDN Tailwind.
+  // Untuk amannya, saya asumsikan style dasar saja, tapi class tetap saya biarkan.
+  
   return (
-    <div className="flex flex-col h-screen bg-gray-50 text-slate-800 font-sans">
+    <div className="font-sans text-slate-800" style={{ padding: '20px', background: '#f8fafc', minHeight: '100vh' }}>
       {/* Header */}
-      <div className="bg-emerald-900 text-white p-4 shadow-md flex justify-between items-center">
+      <div style={{ background: '#064e3b', color: 'white', padding: '16px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Calendar size={24} /> Monthly Financial Plan
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', margin: 0 }}>
+            <Icon name="calendar" /> Monthly Financial Plan
           </h1>
-          <p className="text-emerald-200 text-xs">Proyeksi 12 Bulan (Jan - Dec)</p>
+          <p style={{ fontSize: '0.75rem', color: '#a7f3d0', margin: 0 }}>Proyeksi 12 Bulan (Jan - Dec)</p>
         </div>
-        <div className="flex gap-2">
-           <button onClick={() => setRevenueOverrides({})} className="text-xs bg-emerald-800 px-3 py-1 rounded hover:bg-emerald-700">Reset Edits</button>
-           <button onClick={() => window.location.reload()} className="p-2 hover:bg-emerald-800 rounded"><RefreshCw size={18}/></button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+           <button onClick={() => setRevenueOverrides({})} style={{ fontSize: '0.75rem', background: '#065f46', border: 'none', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer' }}>Reset Edits</button>
+           <button onClick={() => window.location.reload()} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}><Icon name="refresh"/></button>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row h-full overflow-hidden">
+      <div style={{ display: 'flex', gap: '20px', flexDirection: 'column' }}>
         
         {/* SIDEBAR INPUTS */}
-        <div className="w-full md:w-80 bg-white border-r border-gray-200 overflow-y-auto p-4 flex-shrink-0">
-          <h2 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> Assumptions</h2>
+        <div style={{ background: 'white', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <h2 style={{ fontWeight: 'bold', color: '#334155', marginBottom: '16px', display: 'flex', alignItems: 'center' }}><Icon name="trend"/> Assumptions</h2>
           
-          <div className="space-y-6 text-sm">
+          <div style={{ display: 'grid', gap: '10px', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
             <Section title="1. Revenue & Cost">
-              <div className="bg-blue-50 p-2 rounded border border-blue-100 mb-2 text-xs text-blue-800">
-                <Edit3 size={12} className="inline mr-1"/>
-                Anda sekarang bisa mengedit Revenue langsung di tabel "Income Statement".
+              <div style={{ background: '#eff6ff', padding: '8px', borderRadius: '4px', border: '1px solid #dbeafe', fontSize: '0.75rem', color: '#1e40af', marginBottom: '8px' }}>
+                <Icon name="edit"/> Anda sekarang bisa mengedit Revenue langsung di tabel "Income Statement".
               </div>
               <Input label="Jan Base (Juta)" name="baseRevenue" val={inputs.baseRevenue} onChange={handleChange} />
               <Input label="Monthly Growth (%)" name="monthlyGrowth" val={inputs.monthlyGrowth} onChange={handleChange} />
@@ -173,7 +172,7 @@ const MonthlyFinancialModel = () => {
             </Section>
 
             <Section title="3. Working Capital">
-              <div className="bg-yellow-50 p-2 rounded border border-yellow-200 mb-2 text-xs text-yellow-800">
+              <div style={{ background: '#fefce8', padding: '8px', borderRadius: '4px', border: '1px solid #fef9c3', fontSize: '0.75rem', color: '#854d0e', marginBottom: '8px' }}>
                 Penting: DSI tinggi = Cashflow seret.
               </div>
               <Input label="Days Inventory (DSI)" name="dsi" val={inputs.dsi} onChange={handleChange} />
@@ -189,46 +188,55 @@ const MonthlyFinancialModel = () => {
         </div>
 
         {/* MAIN CONTENT */}
-        <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
+        <div style={{ flex: 1 }}>
           {/* Tabs */}
-          <div className="flex bg-white border-b border-gray-200 px-4 pt-2 gap-4 overflow-x-auto">
+          <div style={{ display: 'flex', gap: '10px', borderBottom: '1px solid #e2e8f0', marginBottom: '16px', paddingBottom: '8px' }}>
              {['dashboard', 'income', 'balance', 'cashflow'].map(t => (
                <button 
                 key={t}
                 onClick={() => setActiveTab(t)}
-                className={`pb-2 px-2 text-sm font-medium capitalize ${activeTab === t ? 'text-emerald-700 border-b-2 border-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                style={{ 
+                    padding: '8px 16px', 
+                    cursor: 'pointer', 
+                    border: 'none', 
+                    background: 'transparent',
+                    borderBottom: activeTab === t ? '2px solid #047857' : 'none',
+                    color: activeTab === t ? '#047857' : '#64748b',
+                    fontWeight: activeTab === t ? 'bold' : 'normal',
+                    textTransform: 'capitalize'
+                }}
                >
-                 {t === 'dashboard' ? 'Summary Dashboard' : t + ' Statement'}
+                 {t === 'dashboard' ? 'Summary Dashboard' : t}
                </button>
              ))}
           </div>
 
           {/* Table Area */}
-          <div className="flex-1 overflow-auto p-4">
+          <div style={{ overflowX: 'auto' }}>
             
             {/* DASHBOARD VIEW */}
             {activeTab === 'dashboard' && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card title="Total Revenue (1 Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.rev, 0))} sub="Juta IDR" color="bg-blue-50 text-blue-800" />
-                  <Card title="Ending Cash (Dec)" value={fmt(monthlyData[11].bs.cash)} sub="Posisi Akhir Tahun" color={monthlyData[11].bs.cash < 0 ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"} />
-                  <Card title="Net Income (1 Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netIncome, 0))} sub="Profit Bersih" color="bg-purple-50 text-purple-800" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                  <Card title="Total Revenue (1 Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.rev, 0))} sub="Juta IDR" color="#eff6ff" textColor="#1e40af" />
+                  <Card title="Ending Cash (Dec)" value={fmt(monthlyData[11].bs.cash)} sub="Posisi Akhir Tahun" color={monthlyData[11].bs.cash < 0 ? "#fef2f2" : "#f0fdf4"} textColor={monthlyData[11].bs.cash < 0 ? "#991b1b" : "#166534"} />
+                  <Card title="Net Income (1 Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netIncome, 0))} sub="Profit Bersih" color="#faf5ff" textColor="#6b21a8" />
                 </div>
 
-                <div className="bg-white p-4 rounded shadow-sm border">
-                  <h3 className="font-bold text-gray-700 mb-4">Cash Position Trend (Jan - Dec)</h3>
-                  <div className="flex items-end space-x-2 h-40">
+                <div style={{ background: 'white', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ fontWeight: 'bold', color: '#334155', marginBottom: '16px' }}>Cash Position Trend (Jan - Dec)</h3>
+                  <div style={{ display: 'flex', alignItems: 'flex-end', height: '160px', gap: '4px' }}>
                     {monthlyData.map((m, i) => (
-                      <div key={i} className="flex-1 flex flex-col justify-end group relative">
+                      <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
                         <div 
-                          className={`w-full rounded-t ${m.bs.cash < 0 ? 'bg-red-400' : 'bg-emerald-400'}`} 
-                          style={{ height: `${Math.max(5, Math.min(100, (Math.abs(m.bs.cash) / Math.max(...monthlyData.map(x=>Math.abs(x.bs.cash))) * 100)))}%` }}
+                          style={{ 
+                              width: '100%', 
+                              background: m.bs.cash < 0 ? '#f87171' : '#34d399', 
+                              borderRadius: '4px 4px 0 0',
+                              height: `${Math.max(5, Math.min(100, (Math.abs(m.bs.cash) / Math.max(...monthlyData.map(x=>Math.abs(x.bs.cash))) * 100)))}%` 
+                          }} 
                         ></div>
-                        <span className="text-[10px] text-center text-gray-500 mt-1">{m.name.substring(0,3)}</span>
-                         {/* Tooltip */}
-                        <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-1 rounded z-10 whitespace-nowrap">
-                          {fmt(m.bs.cash)}
-                        </div>
+                        <span style={{ fontSize: '10px', textAlign: 'center', color: '#64748b', marginTop: '4px' }}>{m.name.substring(0,3)}</span>
                       </div>
                     ))}
                   </div>
@@ -246,7 +254,6 @@ const MonthlyFinancialModel = () => {
                     data={monthlyData} 
                     field="pl.rev" 
                     bold 
-                    // PROPS UNTUK EDITABLE
                     editable 
                     overrides={revenueOverrides}
                     onCellChange={handleRevenueChange}
@@ -268,13 +275,13 @@ const MonthlyFinancialModel = () => {
               <TableContainer>
                  <TableHead data={monthlyData} />
                  <tbody>
-                    <tr className="bg-emerald-50"><td className="p-2 font-bold text-xs uppercase text-emerald-800 sticky left-0 bg-emerald-50">Assets</td><td colSpan={12}></td></tr>
+                    <tr style={{ background: '#f0fdf4' }}><td style={{ padding: '8px', fontWeight: 'bold', fontSize: '0.75rem', textTransform: 'uppercase', color: '#065f46', position: 'sticky', left: 0, background: '#f0fdf4' }}>Assets</td><td colSpan={12}></td></tr>
                     <Row label="Cash" data={monthlyData} field="bs.cash" highlight />
                     <Row label="Inventory" data={monthlyData} field="bs.inventory" />
                     <Row label="Fixed Assets" data={monthlyData} field="bs.fixedAssets" />
                     <Row label="TOTAL ASSETS" data={monthlyData} field="bs.totalAssets" bold borderT />
                     
-                    <tr className="bg-emerald-50"><td className="p-2 font-bold text-xs uppercase text-emerald-800 sticky left-0 bg-emerald-50 mt-4">Liabilities & Equity</td><td colSpan={12}></td></tr>
+                    <tr style={{ background: '#f0fdf4' }}><td style={{ padding: '8px', fontWeight: 'bold', fontSize: '0.75rem', textTransform: 'uppercase', color: '#065f46', position: 'sticky', left: 0, background: '#f0fdf4' }}>Liabilities & Equity</td><td colSpan={12}></td></tr>
                     <Row label="Accounts Payable" data={monthlyData} field="bs.ap" />
                     <Row label="Long Term Debt" data={monthlyData} field="bs.debt" />
                     <Row label="Equity" data={monthlyData} field="bs.equity" />
@@ -283,12 +290,12 @@ const MonthlyFinancialModel = () => {
                     
                     {/* Check Row */}
                     <tr>
-                      <td className="p-2 text-xs font-bold sticky left-0 bg-white border-r">Check Balance</td>
+                      <td style={{ padding: '8px', fontSize: '0.75rem', fontWeight: 'bold', position: 'sticky', left: 0, background: 'white', borderRight: '1px solid #e2e8f0' }}>Check Balance</td>
                       {monthlyData.map((m, i) => (
-                        <td key={i} className="p-2 text-center border-b">
+                        <td key={i} style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #f1f5f9' }}>
                            {Math.abs(m.bs.totalAssets - m.bs.totalLiabEq) < 1 
-                             ? <CheckCircle size={14} className="text-green-500 mx-auto"/> 
-                             : <AlertCircle size={14} className="text-red-500 mx-auto"/>}
+                             ? <Icon name="check"/> 
+                             : <Icon name="alert"/>}
                         </td>
                       ))}
                     </tr>
@@ -324,47 +331,47 @@ const MonthlyFinancialModel = () => {
 // --- Sub Components ---
 
 const Section = ({ title, children }) => (
-  <div className="mb-6 border-b pb-4 last:border-0">
-    <h3 className="text-xs font-bold uppercase text-gray-400 mb-3">{title}</h3>
-    <div className="space-y-3">{children}</div>
+  <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '1rem' }}>
+    <h3 style={{ fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', color: '#94a3b8', marginBottom: '0.75rem' }}>{title}</h3>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>{children}</div>
   </div>
 );
 
 const Input = ({ label, name, val, onChange }) => (
-  <div className="flex justify-between items-center">
-    <label className="text-xs text-gray-600">{label}</label>
+  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <label style={{ fontSize: '0.75rem', color: '#475569' }}>{label}</label>
     <input 
       type="number" 
       name={name}
       value={val} 
       onChange={onChange}
-      className="w-16 p-1 text-right text-xs border rounded bg-gray-50 focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none"
+      style={{ width: '4rem', padding: '0.25rem', textAlign: 'right', fontSize: '0.75rem', border: '1px solid #e2e8f0', borderRadius: '4px' }}
     />
   </div>
 );
 
-const Card = ({ title, value, sub, color }) => (
-  <div className={`p-4 rounded shadow-sm border ${color}`}>
-    <h3 className="text-xs font-bold opacity-70 uppercase">{title}</h3>
-    <p className="text-2xl font-bold my-1">{value}</p>
-    <p className="text-xs opacity-80">{sub}</p>
+const Card = ({ title, value, sub, color, textColor }) => (
+  <div style={{ padding: '16px', borderRadius: '8px', border: '1px solid rgba(0,0,0,0.05)', background: color, color: textColor }}>
+    <h3 style={{ fontSize: '0.75rem', fontWeight: 'bold', opacity: 0.7, textTransform: 'uppercase' }}>{title}</h3>
+    <p style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '4px 0' }}>{value}</p>
+    <p style={{ fontSize: '0.75rem', opacity: 0.8 }}>{sub}</p>
   </div>
 );
 
 const TableContainer = ({ children }) => (
-  <div className="bg-white rounded shadow-sm border border-gray-200 overflow-x-auto">
-    <table className="w-full text-sm min-w-[1000px]">
+  <div style={{ background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', overflowX: 'auto' }}>
+    <table style={{ width: '100%', fontSize: '0.875rem', borderCollapse: 'collapse', minWidth: '1000px' }}>
       {children}
     </table>
   </div>
 );
 
 const TableHead = ({ data }) => (
-  <thead className="bg-gray-100 text-gray-600">
+  <thead style={{ background: '#f1f5f9', color: '#475569' }}>
     <tr>
-      <th className="text-left p-3 min-w-[150px] sticky left-0 bg-gray-100 border-r border-gray-200 z-10">Item (Juta IDR)</th>
+      <th style={{ textAlign: 'left', padding: '12px', minWidth: '150px', position: 'sticky', left: 0, background: '#f1f5f9', borderRight: '1px solid #e2e8f0', zIndex: 10 }}>Item (Juta IDR)</th>
       {data.map(m => (
-        <th key={m.month} className="text-right p-3 font-medium min-w-[80px]">Bln {m.month}</th>
+        <th key={m.month} style={{ textAlign: 'right', padding: '12px', fontWeight: '500', minWidth: '80px' }}>Bln {m.month}</th>
       ))}
     </tr>
   </thead>
@@ -374,23 +381,27 @@ const Row = ({ label, data, field, bold, bg, bgDouble, neg, negRed, highlight, b
   const getVal = (obj, path) => path.split('.').reduce((o, i) => o[i], obj);
   const fmt = (n) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
 
+  const rowStyle = {
+    background: highlight ? '#fefce8' : bgDouble ? '#ecfdf5' : bg ? '#f9fafb' : 'white',
+    borderBottom: borderT ? '2px solid #cbd5e1' : '1px solid #f1f5f9'
+  };
+
   return (
-    <tr className={`
-      ${bg ? 'bg-gray-50' : ''} 
-      ${bgDouble ? 'bg-emerald-50' : ''} 
-      ${borderT ? 'border-t-2 border-gray-300' : 'border-b border-gray-50'}
-      ${highlight ? 'bg-yellow-50' : ''}
-      hover:bg-gray-50
-    `}>
-      <td className={`
-        p-2 sticky left-0 border-r border-gray-200 z-10 flex items-center gap-1
-        ${bold ? 'font-bold' : ''}
-        ${highlight ? 'bg-yellow-50 text-blue-800' : bgDouble ? 'bg-emerald-50' : bg ? 'bg-gray-50' : 'bg-white'}
-        ${italic ? 'italic' : ''}
-        ${textGray ? 'text-gray-500' : ''}
-      `}>
+    <tr style={rowStyle}>
+      <td style={{ 
+        padding: '8px', 
+        position: 'sticky', 
+        left: 0, 
+        borderRight: '1px solid #e2e8f0', 
+        zIndex: 10,
+        fontWeight: bold ? 'bold' : 'normal',
+        background: highlight ? '#fefce8' : bgDouble ? '#ecfdf5' : bg ? '#f9fafb' : 'white',
+        fontStyle: italic ? 'italic' : 'normal',
+        color: textGray ? '#64748b' : highlight ? '#1e40af' : 'inherit',
+        display: 'flex', alignItems: 'center', gap: '4px'
+      }}>
         {label}
-        {editable && <Edit3 size={10} className="text-gray-400" />}
+        {editable && <Icon name="edit"/>}
       </td>
       
       {data.map((m, i) => {
@@ -402,15 +413,22 @@ const Row = ({ label, data, field, bold, bg, bgDouble, neg, negRed, highlight, b
         if (editable) {
           const isOverridden = overrides && overrides[m.month] !== undefined;
           return (
-            <td key={i} className="p-1 text-right">
+            <td key={i} style={{ padding: '4px', textAlign: 'right' }}>
               <input 
                 type="number"
-                value={isOverridden ? overrides[m.month] : Math.round(val)} // Tampilkan angka bulat agar bersih
+                value={isOverridden ? overrides[m.month] : Math.round(val)} 
                 onChange={(e) => onCellChange(m.month, e.target.value)}
-                className={`
-                  w-full text-right p-1 text-xs border rounded focus:outline-none focus:ring-1 focus:ring-emerald-500
-                  ${isOverridden ? 'bg-blue-50 border-blue-300 font-bold text-blue-700' : 'bg-transparent border-transparent hover:border-gray-300'}
-                `}
+                style={{ 
+                  width: '100%', 
+                  textAlign: 'right', 
+                  padding: '4px', 
+                  fontSize: '0.75rem', 
+                  border: '1px solid #cbd5e1', 
+                  borderRadius: '4px',
+                  background: isOverridden ? '#eff6ff' : 'transparent',
+                  color: isOverridden ? '#1d4ed8' : 'inherit',
+                  fontWeight: isOverridden ? 'bold' : 'normal'
+                }}
               />
             </td>
           );
@@ -418,12 +436,12 @@ const Row = ({ label, data, field, bold, bg, bgDouble, neg, negRed, highlight, b
 
         // Render Biasa
         return (
-          <td key={i} className={`
-            p-2 text-right 
-            ${bold ? 'font-bold' : ''}
-            ${(negRed || isNeg) && isNeg ? 'text-red-500' : ''}
-            ${textGray ? 'text-gray-500' : ''}
-          `}>
+          <td key={i} style={{ 
+            padding: '8px', 
+            textAlign: 'right',
+            fontWeight: bold ? 'bold' : 'normal',
+            color: (negRed || isNeg) && isNeg ? '#ef4444' : textGray ? '#64748b' : 'inherit'
+          }}>
              {displayVal < 0 ? `(${fmt(Math.abs(displayVal))})` : fmt(displayVal)}
           </td>
         );
@@ -432,4 +450,6 @@ const Row = ({ label, data, field, bold, bg, bgDouble, neg, negRed, highlight, b
   );
 };
 
-export default MonthlyFinancialModel;
+// --- BAGIAN PALING PENTING UNTUK RENDER ---
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<MonthlyFinancialModel />);
