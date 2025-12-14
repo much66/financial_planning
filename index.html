@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monthly Financial Model</title>
+    <link rel="icon" href="logo.png" type="image/png">
     
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -14,6 +15,9 @@
     
     <!-- 3. Load Babel (untuk memproses JSX di browser) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- 4. Load SheetJS (XLSX) untuk Export/Import Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
 
     <!-- Style tambahan jika perlu -->
     <style>
@@ -27,9 +31,9 @@
 
     <!-- Kode Aplikasi React -->
     <script type="text/babel">
-        const { useState, useMemo } = React;
+        const { useState, useMemo, useRef } = React;
 
-        // --- ICON COMPONENTS (Inline SVG pengganti Lucide-React agar jalan tanpa build) ---
+        // --- ICON COMPONENTS ---
         const IconWrapper = ({ children, size = 24, className = "" }) => (
             <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                 {children}
@@ -42,6 +46,8 @@
         const AlertCircle = (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></IconWrapper>;
         const CheckCircle = (props) => <IconWrapper {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconWrapper>;
         const Edit3 = (props) => <IconWrapper {...props}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></IconWrapper>;
+        const Download = (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconWrapper>;
+        const Upload = (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></IconWrapper>;
 
         // --- SUB COMPONENTS ---
 
@@ -52,16 +58,49 @@
             </div>
         );
 
-        const Input = ({ label, name, val, onChange }) => (
-            <div className="flex justify-between items-center">
-                <label className="text-xs text-gray-600">{label}</label>
-                <input 
-                type="number" 
-                name={name}
-                value={val} 
-                onChange={onChange}
-                className="w-16 p-1 text-right text-xs border rounded bg-gray-50 focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none"
-                />
+        const Input = ({ label, name, val, onChange, suffix }) => (
+            <div className="flex justify-between items-center mb-2 last:mb-0">
+                <label className="text-xs text-gray-600 truncate mr-2 flex-1" title={label}>{label}</label>
+                <div className="flex items-center">
+                    <input 
+                        type="number" 
+                        name={name}
+                        value={val} 
+                        onChange={onChange}
+                        className="w-16 p-1 text-right text-xs border rounded bg-gray-50 focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none"
+                    />
+                    {suffix && <span className="text-[10px] text-gray-400 ml-1 w-3">{suffix}</span>}
+                </div>
+            </div>
+        );
+
+        const OpexInput = ({ label, id, inputs, onChange }) => (
+            <div className="flex items-center justify-between mb-2">
+                <label className="text-xs text-gray-600 truncate flex-1 mr-1" title={label}>{label}</label>
+                <div className="flex gap-1">
+                    <div className="relative">
+                        <input 
+                            type="number" 
+                            name={`opex_${id}_fixed`}
+                            value={inputs[`opex_${id}_fixed`]} 
+                            onChange={onChange}
+                            className="w-14 p-1 text-right text-xs border rounded bg-gray-50 focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none"
+                            placeholder="Fix"
+                        />
+                        <span className="absolute right-0.5 top-0.5 text-[8px] text-gray-400">Rp</span>
+                    </div>
+                    <div className="relative">
+                        <input 
+                            type="number" 
+                            name={`opex_${id}_pct`}
+                            value={inputs[`opex_${id}_pct`]} 
+                            onChange={onChange}
+                            className="w-10 p-1 text-right text-xs border rounded bg-gray-50 focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none"
+                            placeholder="%"
+                        />
+                        <span className="absolute right-0.5 top-0.5 text-[8px] text-gray-400">%</span>
+                    </div>
+                </div>
             </div>
         );
 
@@ -92,9 +131,18 @@
             </thead>
         );
 
-        const Row = ({ label, data, field, bold, bg, bgDouble, neg, negRed, highlight, borderT, italic, textGray, editable, overrides, onCellChange }) => {
+        const Row = ({ label, data = [], field, bold, bg, bgDouble, neg, negRed, highlight, borderT, italic, textGray, editable, overrides, onCellChange, indent, subHeader }) => {
             const getVal = (obj, path) => path.split('.').reduce((o, i) => o[i], obj);
             const fmt = (n) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
+
+            if (subHeader) {
+                return (
+                    <tr className="bg-gray-50/50">
+                        <td className="p-2 sticky left-0 border-r border-gray-200 z-10 text-xs font-bold text-gray-500 uppercase tracking-wider pl-4">{label}</td>
+                        <td colSpan={data.length || 12}></td>
+                    </tr>
+                )
+            }
 
             return (
                 <tr className={`
@@ -110,6 +158,7 @@
                     ${highlight ? 'bg-yellow-50 text-blue-800' : bgDouble ? 'bg-emerald-50' : bg ? 'bg-gray-50' : 'bg-white'}
                     ${italic ? 'italic' : ''}
                     ${textGray ? 'text-gray-500' : ''}
+                    ${indent ? 'pl-6' : ''}
                 `}>
                     {label}
                     {editable && <Edit3 size={10} className="text-gray-400" />}
@@ -120,7 +169,6 @@
                     const displayVal = neg ? -val : val;
                     const isNeg = displayVal < 0;
 
-                    // Jika Editable aktif
                     if (editable) {
                     const isOverridden = overrides && overrides[m.month] !== undefined;
                     return (
@@ -138,7 +186,6 @@
                     );
                     }
 
-                    // Render Biasa
                     return (
                     <td key={i} className={`
                         p-2 text-right 
@@ -157,28 +204,41 @@
         // --- MAIN APP COMPONENT ---
 
         const MonthlyFinancialModel = () => {
-            const [activeTab, setActiveTab] = useState('dashboard');
+            const [activeTab, setActiveTab] = useState('income'); 
+            const fileInputRef = useRef(null);
 
             // --- 1. INITIAL ASSUMPTIONS (INPUTS) ---
             const [inputs, setInputs] = useState({
                 // Revenue & Growth
-                baseRevenue: 800, // Jan Revenue (Juta IDR)
-                monthlyGrowth: 2, // % growth per month
+                baseRevenue: 800, 
+                monthlyGrowth: 2, 
                 
-                // Costs
-                cogsPct: 60, // %
-                opexFixed: 150, // Fixed per month (Rent, Salary)
-                opexVarPct: 5, // Variable per month (% of sales)
-                
+                // Revenue Deductions
+                returnPct: 2,       
+                consignmentPct: 10, 
+                platformPct: 3,     
+
+                // Direct Costs
+                cogsPct: 50, 
+
+                // --- OPEX BREAKDOWN ---
+                opex_mkt_fixed: 10, opex_mkt_pct: 5,
+                opex_content_fixed: 5, opex_content_pct: 0,
+                opex_salary_fixed: 100, opex_salary_pct: 0,
+                opex_rent_fixed: 15, opex_rent_pct: 0,
+                opex_office_fixed: 5, opex_office_pct: 0.5,
+                opex_repair_fixed: 2, opex_repair_pct: 0.2,
+                opex_rnd_fixed: 5, opex_rnd_pct: 1,
+
                 // Financials
-                taxRate: 22, // %
-                annualInterestRate: 12, // % per year
+                taxRate: 22, 
+                annualInterestRate: 12, 
                 
-                // Working Capital (CRITICAL FOR RETAIL)
-                dsi: 60, // Days Sales Inventory
-                dpo: 45, // Days Payable Outstanding
+                // Working Capital
+                dsi: 60, 
+                dpo: 45, 
                 
-                // Opening Balance (Dec Previous Year)
+                // Opening Balance
                 startCash: 200,
                 startInventory: 400,
                 startFixedAssets: 5000,
@@ -187,25 +247,158 @@
                 startRetainedEarnings: 0 
             });
 
-            // State untuk menyimpan manual override revenue per bulan
             const [revenueOverrides, setRevenueOverrides] = useState({});
 
             const handleChange = (e) => {
                 const { name, value } = e.target;
-                setInputs({ ...inputs, [name]: parseFloat(value) || 0 });
+                setInputs(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
             };
 
             const handleRevenueChange = (month, val) => {
                 setRevenueOverrides(prev => {
-                const newOverrides = { ...prev };
-                if (val === '' || val === null) {
-                    delete newOverrides[month]; 
-                } else {
-                    newOverrides[month] = parseFloat(val);
-                }
-                return newOverrides;
+                    const newOverrides = { ...prev };
+                    if (val === '' || val === null) {
+                        delete newOverrides[month]; 
+                    } else {
+                        newOverrides[month] = parseFloat(val);
+                    }
+                    return newOverrides;
                 });
             };
+
+            // --- EXPORT TO EXCEL ---
+            const handleExport = () => {
+                const wb = XLSX.utils.book_new();
+
+                // Helper to create header row
+                const months = Array.from({length: 12}, (_, i) => `Bulan ${i+1}`);
+                const headerRow = ["Item", ...months];
+
+                // 1. Tab Income Statement
+                const incomeRows = [
+                    headerRow,
+                    ["Gross Revenue", ...monthlyData.map(m => m.pl.rev)],
+                    ["(-) Sales Return", ...monthlyData.map(m => -m.pl.salesReturn)],
+                    ["(-) Consignment Fee", ...monthlyData.map(m => -m.pl.consignmentFee)],
+                    ["(-) Platform Fee", ...monthlyData.map(m => -m.pl.platformFee)],
+                    ["Net Revenue", ...monthlyData.map(m => m.pl.netRevenue)],
+                    ["(-) COGS", ...monthlyData.map(m => -m.pl.cogs)],
+                    ["Gross Profit", ...monthlyData.map(m => m.pl.gp)],
+                    ["Operating Expenses (Total)", ...monthlyData.map(m => -m.pl.totalOpex)],
+                    ["EBITDA", ...monthlyData.map(m => m.pl.ebit + m.pl.depr)], // approx logic for display
+                    ["(-) Amortization & Depr", ...monthlyData.map(m => -m.pl.depr)],
+                    ["EBIT", ...monthlyData.map(m => m.pl.ebit)],
+                    ["(-) Finance Cost", ...monthlyData.map(m => -m.pl.int)],
+                    ["(-) Tax", ...monthlyData.map(m => -m.pl.tax)],
+                    ["Net Income", ...monthlyData.map(m => m.pl.netIncome)],
+                ];
+                const wsIncome = XLSX.utils.aoa_to_sheet(incomeRows);
+                XLSX.utils.book_append_sheet(wb, wsIncome, "Income Statement");
+
+                // 2. Tab Cash Flow
+                const cfRows = [
+                    headerRow,
+                    ["Net Income", ...monthlyData.map(m => m.cf.ni)],
+                    ["(+) Amort & Depr", ...monthlyData.map(m => m.cf.depr)],
+                    ["(Inc)/Dec Inventory", ...monthlyData.map(m => m.cf.chgInv)],
+                    ["Inc/(Dec) Payable", ...monthlyData.map(m => m.cf.chgAp)],
+                    ["Cash From Ops", ...monthlyData.map(m => m.cf.cfo)],
+                    ["Net Cash Change", ...monthlyData.map(m => m.cf.netChange)],
+                    ["Beg. Cash", ...monthlyData.map(m => m.cf.begCash)],
+                    ["End. Cash", ...monthlyData.map(m => m.cf.endCash)],
+                ];
+                const wsCf = XLSX.utils.aoa_to_sheet(cfRows);
+                XLSX.utils.book_append_sheet(wb, wsCf, "Cash Flow");
+
+                // 3. Tab Balance Sheet (User mentioned Income, but standard is BS)
+                const bsRows = [
+                    headerRow,
+                    ["ASSETS", "", "", "", "", "", "", "", "", "", "", "", ""],
+                    ["Cash", ...monthlyData.map(m => m.bs.cash)],
+                    ["Inventory", ...monthlyData.map(m => m.bs.inventory)],
+                    ["Fixed Assets", ...monthlyData.map(m => m.bs.fixedAssets)],
+                    ["TOTAL ASSETS", ...monthlyData.map(m => m.bs.totalAssets)],
+                    ["LIABILITIES & EQUITY", "", "", "", "", "", "", "", "", "", "", "", ""],
+                    ["Accounts Payable", ...monthlyData.map(m => m.bs.ap)],
+                    ["Debt", ...monthlyData.map(m => m.bs.debt)],
+                    ["Equity", ...monthlyData.map(m => m.bs.equity)],
+                    ["Retained Earnings", ...monthlyData.map(m => m.bs.re)],
+                    ["TOTAL LIAB & EQ", ...monthlyData.map(m => m.bs.totalLiabEq)],
+                ];
+                const wsBs = XLSX.utils.aoa_to_sheet(bsRows);
+                XLSX.utils.book_append_sheet(wb, wsBs, "Balance Sheet");
+
+                // 4. Tab Variables (Assumptions) for Import
+                // Format: Key | Value
+                const variableRows = [
+                    ["VARIABLE_KEY", "VALUE"],
+                    ...Object.entries(inputs),
+                    // Serialize revenueOverrides object to JSON string for easy restore
+                    ["REVENUE_OVERRIDES_JSON", JSON.stringify(revenueOverrides)] 
+                ];
+                const wsVars = XLSX.utils.aoa_to_sheet(variableRows);
+                XLSX.utils.book_append_sheet(wb, wsVars, "Variables");
+
+                // Download File
+                XLSX.writeFile(wb, "Financial_Model_Export.xlsx");
+            };
+
+            // --- IMPORT FROM EXCEL ---
+            const handleImportClick = () => {
+                fileInputRef.current.click();
+            };
+
+            const handleFileChange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const bstr = evt.target.result;
+                    const wb = XLSX.read(bstr, { type: 'binary' });
+
+                    // Look for "Variables" sheet
+                    const wsName = "Variables";
+                    if (!wb.Sheets[wsName]) {
+                        alert("File Excel tidak valid atau tidak memiliki tab 'Variables'.");
+                        return;
+                    }
+
+                    const ws = wb.Sheets[wsName];
+                    const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+                    // Parse Data back to state
+                    const newInputs = { ...inputs };
+                    let newOverrides = {};
+
+                    // Start from index 1 to skip header "VARIABLE_KEY", "VALUE"
+                    for (let i = 1; i < data.length; i++) {
+                        const row = data[i];
+                        if (row && row.length >= 2) {
+                            const key = row[0];
+                            const val = row[1];
+
+                            if (key === "REVENUE_OVERRIDES_JSON") {
+                                try {
+                                    newOverrides = JSON.parse(val);
+                                } catch (err) {
+                                    console.error("Failed parsing overrides", err);
+                                }
+                            } else if (newInputs.hasOwnProperty(key)) {
+                                newInputs[key] = parseFloat(val);
+                            }
+                        }
+                    }
+
+                    setInputs(newInputs);
+                    setRevenueOverrides(newOverrides);
+                    alert("Data berhasil diimport!");
+                };
+                reader.readAsBinaryString(file);
+                // Reset file input
+                e.target.value = null;
+            };
+
 
             // --- 2. CALCULATION ENGINE ---
             const monthlyData = useMemo(() => {
@@ -223,28 +416,47 @@
                 };
 
                 for (let m = 1; m <= 12; m++) {
-                // LOGIC REVENUE
-                let rev;
+                // A. REVENUE
+                let grossRev;
                 if (revenueOverrides[m] !== undefined) {
-                    rev = revenueOverrides[m];
+                    grossRev = revenueOverrides[m];
                 } else {
-                    rev = m === 1 ? inputs.baseRevenue : prev.rev * (1 + inputs.monthlyGrowth / 100);
+                    grossRev = m === 1 ? inputs.baseRevenue : prev.rev * (1 + inputs.monthlyGrowth / 100);
                 }
 
-                const cogs = rev * (inputs.cogsPct / 100);
-                const grossProfit = rev - cogs;
+                const salesReturn = grossRev * (inputs.returnPct / 100);
+                const consignmentFee = grossRev * (inputs.consignmentPct / 100);
+                const platformFee = grossRev * (inputs.platformPct / 100);
                 
-                const opexFixed = inputs.opexFixed;
-                const opexVar = rev * (inputs.opexVarPct / 100);
+                const netRevenue = grossRev - salesReturn - consignmentFee - platformFee;
+
+                // B. COGS
+                const cogs = grossRev * (inputs.cogsPct / 100);
+                const grossProfit = netRevenue - cogs;
+                
+                // C. OPEX BREAKDOWN CALCULATION
+                // Logic: Fixed + (NetRevenue * %)
+                const calcOpex = (id) => inputs[`opex_${id}_fixed`] + (netRevenue * (inputs[`opex_${id}_pct`] / 100));
+
+                const opex_mkt = calcOpex('mkt');
+                const opex_content = calcOpex('content');
+                const opex_salary = calcOpex('salary');
+                const opex_rent = calcOpex('rent');
+                const opex_office = calcOpex('office');
+                const opex_repair = calcOpex('repair');
+                const opex_rnd = calcOpex('rnd');
+
+                const totalOpex = opex_mkt + opex_content + opex_salary + opex_rent + opex_office + opex_repair + opex_rnd;
+
                 const depr = (inputs.startFixedAssets * 0.1) / 12; 
                 
-                const ebit = grossProfit - opexFixed - opexVar - depr;
+                const ebit = grossProfit - totalOpex - depr;
                 const interest = (inputs.startDebt * (inputs.annualInterestRate/100)) / 12;
                 const ebt = ebit - interest;
                 const tax = ebt > 0 ? ebt * (inputs.taxRate / 100) : 0;
                 const netIncome = ebt - tax;
 
-                // BALANCE SHEET
+                // D. BALANCE SHEET
                 const inventory = (cogs / 30) * inputs.dsi;
                 const ap = (cogs / 30) * inputs.dpo;
                 const fixedAssets = prev.fixedAssets - depr; 
@@ -252,7 +464,7 @@
                 const debt = inputs.startDebt;
                 const equity = inputs.startEquity;
 
-                // CASH FLOW
+                // E. CASH FLOW
                 const cfo_ni = netIncome;
                 const cfo_depr = depr;
                 const cfo_inv = -(inventory - prev.inventory);
@@ -268,14 +480,22 @@
                 const monthObj = {
                     month: m,
                     name: `Bulan ${m}`,
-                    pl: { rev, cogs, gp: grossProfit, opex: opexFixed+opexVar, depr, ebit, int: interest, tax, netIncome },
+                    pl: { 
+                        rev: grossRev, 
+                        salesReturn, consignmentFee, platformFee, netRevenue,
+                        cogs, gp: grossProfit, 
+                        // Opex Detail
+                        opex_mkt, opex_content, opex_salary, opex_rent, opex_office, opex_repair, opex_rnd,
+                        totalOpex,
+                        depr, ebit, int: interest, tax, netIncome 
+                    },
                     bs: { cash: endCash, inventory, fixedAssets, totalAssets: endCash + inventory + fixedAssets, ap, debt, equity, re, totalLiabEq: ap + debt + equity + re },
                     cf: { ni: cfo_ni, depr: cfo_depr, chgInv: cfo_inv, chgAp: cfo_ap, cfo: cfo_total, netChange, begCash: prev.cash, endCash }
                 };
 
                 data.push(monthObj);
 
-                prev = { ...monthObj.bs, rev: rev, inventory: inventory, ap: ap, cash: endCash };
+                prev = { ...monthObj.bs, rev: grossRev, inventory: inventory, ap: ap, cash: endCash };
                 }
 
                 return data;
@@ -289,50 +509,74 @@
                 <div className="bg-emerald-900 text-white p-4 shadow-md flex justify-between items-center">
                     <div>
                     <h1 className="text-xl font-bold flex items-center gap-2">
-                        <Calendar size={24} /> Monthly Financial Plan
+                        <Calendar size={24} /> Monthly Financial Model
                     </h1>
-                    <p className="text-emerald-200 text-xs">Proyeksi 12 Bulan (Jan - Dec)</p>
+                    <p className="text-emerald-200 text-xs">Retail Projections with Detailed Opex</p>
                     </div>
                     <div className="flex gap-2">
-                    <button onClick={() => setRevenueOverrides({})} className="text-xs bg-emerald-800 px-3 py-1 rounded hover:bg-emerald-700 text-white">Reset Edits</button>
-                    <button onClick={() => window.location.reload()} className="p-2 hover:bg-emerald-800 rounded"><RefreshCw size={18}/></button>
+                        <input 
+                            type="file" 
+                            ref={fileInputRef} 
+                            onChange={handleFileChange} 
+                            accept=".xlsx, .xls" 
+                            style={{display: 'none'}} 
+                        />
+                        <button onClick={handleImportClick} className="flex items-center gap-1 text-xs bg-emerald-700 px-3 py-1 rounded hover:bg-emerald-600 text-white border border-emerald-600">
+                            <Upload size={14}/> Import
+                        </button>
+                        <button onClick={handleExport} className="flex items-center gap-1 text-xs bg-white text-emerald-900 px-3 py-1 rounded hover:bg-gray-100 font-bold">
+                            <Download size={14}/> Export Excel
+                        </button>
+                        <button onClick={() => setRevenueOverrides({})} className="text-xs bg-emerald-800 px-3 py-1 rounded hover:bg-emerald-700 text-white">Reset Edits</button>
+                        <button onClick={() => window.location.reload()} className="p-2 hover:bg-emerald-800 rounded"><RefreshCw size={18}/></button>
                     </div>
                 </div>
 
                 <div className="flex flex-col md:flex-row h-full overflow-hidden">
                     
                     {/* SIDEBAR INPUTS */}
-                    <div className="w-full md:w-80 bg-white border-r border-gray-200 overflow-y-auto p-4 flex-shrink-0">
+                    <div className="w-full md:w-80 bg-white border-r border-gray-200 overflow-y-auto p-4 flex-shrink-0 shadow-inner z-20">
                     <h2 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> Assumptions</h2>
                     
                     <div className="space-y-6 text-sm">
-                        <Section title="1. Revenue & Cost">
-                        <div className="bg-blue-50 p-2 rounded border border-blue-100 mb-2 text-xs text-blue-800">
-                            <Edit3 size={12} className="inline mr-1"/>
-                            Anda sekarang bisa mengedit Revenue langsung di tabel "Income Statement".
-                        </div>
-                        <Input label="Jan Base (Juta)" name="baseRevenue" val={inputs.baseRevenue} onChange={handleChange} />
-                        <Input label="Monthly Growth (%)" name="monthlyGrowth" val={inputs.monthlyGrowth} onChange={handleChange} />
-                        <Input label="COGS (% of Rev)" name="cogsPct" val={inputs.cogsPct} onChange={handleChange} />
+                        <Section title="1. Revenue & Direct Costs">
+                            <Input label="Jan Gross Rev" name="baseRevenue" val={inputs.baseRevenue} onChange={handleChange} suffix="Jt"/>
+                            <Input label="Growth (%)" name="monthlyGrowth" val={inputs.monthlyGrowth} onChange={handleChange} suffix="%"/>
+                            <div className="my-2 border-t border-dashed"></div>
+                            <Input label="Retur Penjualan" name="returnPct" val={inputs.returnPct} onChange={handleChange} suffix="%"/>
+                            <Input label="Consignment Fee" name="consignmentPct" val={inputs.consignmentPct} onChange={handleChange} suffix="%"/>
+                            <Input label="Platform Fee" name="platformPct" val={inputs.platformPct} onChange={handleChange} suffix="%"/>
+                            <div className="my-2 border-t border-dashed"></div>
+                            <Input label="COGS (% Gross)" name="cogsPct" val={inputs.cogsPct} onChange={handleChange} suffix="%"/>
                         </Section>
 
-                        <Section title="2. Operating Expense">
-                        <Input label="Fixed Opex (Gaji/Sewa)" name="opexFixed" val={inputs.opexFixed} onChange={handleChange} />
-                        <Input label="Var Opex (% Sales)" name="opexVarPct" val={inputs.opexVarPct} onChange={handleChange} />
+                        <Section title="2. Operating Expenses (Opex)">
+                            <div className="bg-blue-50 p-2 rounded mb-2 text-[10px] text-blue-800 leading-tight">
+                                Isi kolom <b>Fix (Juta)</b> atau <b>% (dari Net Sales)</b> atau keduanya.
+                            </div>
+                            
+                            <OpexInput label="Pemasaran & Iklan" id="mkt" inputs={inputs} onChange={handleChange} />
+                            <OpexInput label="Konten Kreatif" id="content" inputs={inputs} onChange={handleChange} />
+                            <OpexInput label="Gaji & THR" id="salary" inputs={inputs} onChange={handleChange} />
+                            <OpexInput label="Sewa Tempat" id="rent" inputs={inputs} onChange={handleChange} />
+                            <OpexInput label="Beban Kantor (Listrik/ATK)" id="office" inputs={inputs} onChange={handleChange} />
+                            <OpexInput label="Perbaikan & Maintenance" id="repair" inputs={inputs} onChange={handleChange} />
+                            <OpexInput label="Riset & Pengembangan" id="rnd" inputs={inputs} onChange={handleChange} />
                         </Section>
 
-                        <Section title="3. Working Capital">
-                        <div className="bg-yellow-50 p-2 rounded border border-yellow-200 mb-2 text-xs text-yellow-800">
-                            Penting: DSI tinggi = Cashflow seret.
-                        </div>
-                        <Input label="Days Inventory (DSI)" name="dsi" val={inputs.dsi} onChange={handleChange} />
-                        <Input label="Days Payable (DPO)" name="dpo" val={inputs.dpo} onChange={handleChange} />
+                        <Section title="3. Financials & Taxes">
+                            <Input label="Finance Cost (p.a)" name="annualInterestRate" val={inputs.annualInterestRate} onChange={handleChange} suffix="%"/>
+                            <Input label="Tax Rate" name="taxRate" val={inputs.taxRate} onChange={handleChange} suffix="%"/>
                         </Section>
 
-                        <Section title="4. Opening Balances">
-                        <Input label="Start Cash" name="startCash" val={inputs.startCash} onChange={handleChange} />
-                        <Input label="Start Inventory" name="startInventory" val={inputs.startInventory} onChange={handleChange} />
-                        <Input label="Start Debt" name="startDebt" val={inputs.startDebt} onChange={handleChange} />
+                        <Section title="4. Working Capital & Balance">
+                            <Input label="Days Inventory" name="dsi" val={inputs.dsi} onChange={handleChange} suffix="Hr"/>
+                            <Input label="Days Payable" name="dpo" val={inputs.dpo} onChange={handleChange} suffix="Hr"/>
+                            <div className="my-2 border-t border-dashed"></div>
+                            <Input label="Start Cash" name="startCash" val={inputs.startCash} onChange={handleChange} suffix="Jt"/>
+                            <Input label="Start Inventory" name="startInventory" val={inputs.startInventory} onChange={handleChange} suffix="Jt"/>
+                            <Input label="Start Debt" name="startDebt" val={inputs.startDebt} onChange={handleChange} suffix="Jt"/>
+                            <Input label="Start Equity" name="startEquity" val={inputs.startEquity} onChange={handleChange} suffix="Jt"/>
                         </Section>
                     </div>
                     </div>
@@ -359,29 +603,42 @@
                         {activeTab === 'dashboard' && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <Card title="Total Revenue (1 Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.rev, 0))} sub="Juta IDR" color="bg-blue-50 text-blue-800" />
-                            <Card title="Ending Cash (Dec)" value={fmt(monthlyData[11].bs.cash)} sub="Posisi Akhir Tahun" color={monthlyData[11].bs.cash < 0 ? "bg-red-50 text-red-800" : "bg-green-50 text-green-800"} />
-                            <Card title="Net Income (1 Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netIncome, 0))} sub="Profit Bersih" color="bg-purple-50 text-purple-800" />
+                            <Card title="Total Net Revenue" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netRevenue, 0))} sub="Juta IDR (After Fees)" color="bg-blue-50 text-blue-800" />
+                            <Card title="Total Opex (Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.totalOpex, 0))} sub="Total Beban Operasional" color="bg-orange-50 text-orange-800" />
+                            <Card title="Net Income" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netIncome, 0))} sub="Profit Bersih Setahun" color="bg-purple-50 text-purple-800" />
                             </div>
 
-                            <div className="bg-white p-4 rounded shadow-sm border">
-                            <h3 className="font-bold text-gray-700 mb-4">Cash Position Trend (Jan - Dec)</h3>
-                            {/* FIX: Removed items-end to allow children to stretch fully for height calculation */}
-                            <div className="flex space-x-2 h-40">
-                                {monthlyData.map((m, i) => (
-                                <div key={i} className="flex-1 flex flex-col justify-end group relative">
-                                    <div 
-                                    className={`w-full rounded-t ${m.bs.cash < 0 ? 'bg-red-400' : 'bg-emerald-400'}`} 
-                                    style={{ height: `${Math.max(5, Math.min(100, (Math.abs(m.bs.cash) / Math.max(...monthlyData.map(x=>Math.abs(x.bs.cash))) * 100)))}%` }}
-                                    ></div>
-                                    <span className="text-[10px] text-center text-gray-500 mt-1">{m.name.substring(0,3)}</span>
-                                    {/* Tooltip */}
-                                    <div className="absolute bottom-full mb-2 hidden group-hover:block bg-black text-white text-xs p-1 rounded z-10 whitespace-nowrap">
-                                    {fmt(m.bs.cash)}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <div className="bg-white p-4 rounded shadow-sm border">
+                                    <h3 className="font-bold text-gray-700 mb-4">Opex Breakdown (Total Setahun)</h3>
+                                    <div className="space-y-2 text-xs">
+                                        {[
+                                            {l: 'Pemasaran & Iklan', v: monthlyData.reduce((a,c)=>a+c.pl.opex_mkt,0)},
+                                            {l: 'Gaji & THR', v: monthlyData.reduce((a,c)=>a+c.pl.opex_salary,0)},
+                                            {l: 'Sewa', v: monthlyData.reduce((a,c)=>a+c.pl.opex_rent,0)},
+                                            {l: 'Lain-lain (Konten, Kantor, dll)', v: monthlyData.reduce((a,c)=>a+c.pl.opex_content+c.pl.opex_office+c.pl.opex_repair+c.pl.opex_rnd,0)}
+                                        ].sort((a,b)=>b.v-a.v).map((x,i) => (
+                                            <div key={i} className="flex justify-between items-center border-b border-dashed pb-1">
+                                                <span>{x.l}</span>
+                                                <span className="font-bold">{fmt(x.v)}</span>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                                ))}
-                            </div>
+                                <div className="bg-white p-4 rounded shadow-sm border">
+                                    <h3 className="font-bold text-gray-700 mb-4">Cash Trend</h3>
+                                    <div className="flex space-x-2 h-32 items-end">
+                                        {monthlyData.map((m, i) => (
+                                        <div key={i} className="flex-1 bg-emerald-100 rounded-t relative group" style={{height: '100%'}}>
+                                            <div 
+                                                className={`absolute bottom-0 w-full rounded-t ${m.bs.cash < 0 ? 'bg-red-400' : 'bg-emerald-500'}`} 
+                                                style={{ height: `${Math.max(5, Math.min(100, (Math.abs(m.bs.cash) / Math.max(...monthlyData.map(x=>Math.abs(x.bs.cash))) * 100)))}%` }}
+                                            ></div>
+                                            <div className="absolute bottom-full mb-1 hidden group-hover:block bg-black text-white text-[10px] p-1 rounded z-10">{fmt(m.bs.cash)}</div>
+                                        </div>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         )}
@@ -391,22 +648,29 @@
                         <TableContainer>
                             <TableHead data={monthlyData} />
                             <tbody>
-                            <Row 
-                                label="Revenue (Editable)" 
-                                data={monthlyData} 
-                                field="pl.rev" 
-                                bold 
-                                // PROPS UNTUK EDITABLE
-                                editable 
-                                overrides={revenueOverrides}
-                                onCellChange={handleRevenueChange}
-                            />
+                            <Row label="Gross Revenue (Editable)" data={monthlyData} field="pl.rev" bold editable overrides={revenueOverrides} onCellChange={handleRevenueChange}/>
+                            <Row label="(-) Sales Return" data={monthlyData} field="pl.salesReturn" neg textGray indent />
+                            <Row label="(-) Consignment Fee" data={monthlyData} field="pl.consignmentFee" neg textGray indent />
+                            <Row label="(-) Platform Fee" data={monthlyData} field="pl.platformFee" neg textGray indent />
+                            <Row label="Net Revenue" data={monthlyData} field="pl.netRevenue" bold bg borderT />
                             <Row label="(-) COGS" data={monthlyData} field="pl.cogs" neg />
-                            <Row label="Gross Profit" data={monthlyData} field="pl.gp" bold bg />
-                            <Row label="(-) Opex" data={monthlyData} field="pl.opex" neg />
-                            <Row label="(-) Depreciation" data={monthlyData} field="pl.depr" neg />
+                            <Row label="Gross Profit" data={monthlyData} field="pl.gp" bold bg Double />
+                            
+                            {/* OPEX BREAKDOWN */}
+                            <Row label="Operating Expenses" subHeader data={monthlyData} />
+                            <Row label="(-) Pemasaran & Iklan" data={monthlyData} field="pl.opex_mkt" neg indent />
+                            <Row label="(-) Konten Kreatif" data={monthlyData} field="pl.opex_content" neg indent />
+                            <Row label="(-) Gaji & THR" data={monthlyData} field="pl.opex_salary" neg indent />
+                            <Row label="(-) Sewa" data={monthlyData} field="pl.opex_rent" neg indent />
+                            <Row label="(-) Beban Kantor" data={monthlyData} field="pl.opex_office" neg indent />
+                            <Row label="(-) Perbaikan" data={monthlyData} field="pl.opex_repair" neg indent />
+                            <Row label="(-) R&D" data={monthlyData} field="pl.opex_rnd" neg indent />
+                            <Row label="Total Opex" data={monthlyData} field="pl.totalOpex" bold bg neg />
+
+                            <Row label="EBITDA" data={monthlyData} field="pl.ebit" bold />
+                            <Row label="(-) Amortization & Depreciation" data={monthlyData} field="pl.depr" neg textGray />
                             <Row label="EBIT" data={monthlyData} field="pl.ebit" bold />
-                            <Row label="(-) Interest" data={monthlyData} field="pl.int" neg />
+                            <Row label="(-) Finance Cost" data={monthlyData} field="pl.int" neg />
                             <Row label="(-) Tax" data={monthlyData} field="pl.tax" neg />
                             <Row label="Net Income" data={monthlyData} field="pl.netIncome" bold bgDouble />
                             </tbody>
@@ -434,13 +698,16 @@
                                 {/* Check Row */}
                                 <tr>
                                 <td className="p-2 text-xs font-bold sticky left-0 bg-white border-r">Check Balance</td>
-                                {monthlyData.map((m, i) => (
-                                    <td key={i} className="p-2 text-center border-b">
-                                    {Math.abs(m.bs.totalAssets - m.bs.totalLiabEq) < 1 
-                                        ? <CheckCircle size={14} className="text-green-500 mx-auto"/> 
-                                        : <AlertCircle size={14} className="text-red-500 mx-auto"/>}
+                                {monthlyData.map((m, i) => {
+                                    const diff = m.bs.totalAssets - m.bs.totalLiabEq;
+                                    const isBalanced = Math.abs(diff) < 0.1; 
+                                    return (
+                                    <td key={i} className="p-2 text-center border-b align-top">
+                                        {isBalanced ? <CheckCircle size={14} className="text-green-500 mx-auto"/> : 
+                                        <div className="flex flex-col items-center"><AlertCircle size={14} className="text-red-500"/><span className="text-[9px] text-red-500 font-bold">{fmt(diff)}</span></div>}
                                     </td>
-                                ))}
+                                    );
+                                })}
                                 </tr>
                             </tbody>
                         </TableContainer>
@@ -452,11 +719,10 @@
                             <TableHead data={monthlyData} />
                             <tbody>
                             <Row label="Net Income" data={monthlyData} field="cf.ni" bold />
-                            <Row label="(+) Depreciation" data={monthlyData} field="cf.depr" />
+                            <Row label="(+) Amortization & Depreciation" data={monthlyData} field="cf.depr" />
                             <Row label="(Inc)/Dec Inventory" data={monthlyData} field="cf.chgInv" negRed />
                             <Row label="Inc/(Dec) Payable" data={monthlyData} field="cf.chgAp" />
                             <Row label="Cash From Ops" data={monthlyData} field="cf.cfo" bold bg />
-                            
                             <Row label="Net Cash Change" data={monthlyData} field="cf.netChange" bold borderT />
                             <Row label="Beg. Cash" data={monthlyData} field="cf.begCash" italic textGray />
                             <Row label="End. Cash" data={monthlyData} field="cf.endCash" bold bgDouble />
@@ -471,7 +737,6 @@
             );
         };
 
-        // --- RENDER APP ---
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<MonthlyFinancialModel />);
     </script>
