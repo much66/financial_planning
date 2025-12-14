@@ -651,7 +651,7 @@
                         <TableContainer>
                             <TableHead data={monthlyData} />
                             <tbody>
-                            <Row label="Gross Revenue (Editable)" data={monthlyData} field="pl.rev" bold editable overrides={revenueOverrides} onCellChange={handleRevenueChange}/>
+                            <Row label="Gross Revenue" data={monthlyData} field="pl.rev" bold editable overrides={revenueOverrides} onCellChange={handleRevenueChange}/>
                             <Row label="(-) Sales Return" data={monthlyData} field="pl.salesReturn" neg textGray indent />
                             <Row label="(-) Consignment Fee" data={monthlyData} field="pl.consignmentFee" neg textGray indent />
                             <Row label="(-) Platform Fee" data={monthlyData} field="pl.platformFee" neg textGray indent />
