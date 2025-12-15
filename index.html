@@ -408,23 +408,38 @@
                 const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
                 const headerRow = ["Item", ...monthNames];
 
+                // MODIFIKASI: Helper untuk konversi ke Angka Real (Rupiah Penuh)
+                const toReal = (n) => (n || 0) * 1_000_000;
+
                 // 1. Tab Income Statement
                 const incomeRows = [
                     headerRow,
-                    ["Gross Revenue", ...monthlyData.map(m => m.pl.rev)],
-                    ["(-) Sales Return", ...monthlyData.map(m => -m.pl.salesReturn)],
-                    ["(-) Consignment Fee", ...monthlyData.map(m => -m.pl.consignmentFee)],
-                    ["(-) Platform Fee", ...monthlyData.map(m => -m.pl.platformFee)],
-                    ["Net Revenue", ...monthlyData.map(m => m.pl.netRevenue)],
-                    ["(-) COGS", ...monthlyData.map(m => -m.pl.cogs)],
-                    ["Gross Profit", ...monthlyData.map(m => m.pl.gp)],
-                    ["Operating Expenses (Total)", ...monthlyData.map(m => -m.pl.totalOpex)],
-                    ["EBITDA", ...monthlyData.map(m => m.pl.ebit + m.pl.depr)], // approx logic for display
-                    ["(-) Amortization & Depr", ...monthlyData.map(m => -m.pl.depr)],
-                    ["EBIT", ...monthlyData.map(m => m.pl.ebit)],
-                    ["(-) Finance Cost", ...monthlyData.map(m => -m.pl.int)],
-                    ["(-) Tax", ...monthlyData.map(m => -m.pl.tax)],
-                    ["Net Income", ...monthlyData.map(m => m.pl.netIncome)],
+                    ["Gross Revenue", ...monthlyData.map(m => toReal(m.pl.rev))],
+                    ["(-) Sales Return", ...monthlyData.map(m => toReal(-m.pl.salesReturn))],
+                    ["(-) Consignment Fee", ...monthlyData.map(m => toReal(-m.pl.consignmentFee))],
+                    ["(-) Platform Fee", ...monthlyData.map(m => toReal(-m.pl.platformFee))],
+                    ["Net Revenue", ...monthlyData.map(m => toReal(m.pl.netRevenue))],
+                    ["(-) COGS", ...monthlyData.map(m => toReal(-m.pl.cogs))],
+                    ["Gross Profit", ...monthlyData.map(m => toReal(m.pl.gp))],
+                    
+                    // MODIFIKASI: Detail OPEX sesuai Web
+                    ["Operating Expenses (Detail)", "", "", "", "", "", "", "", "", "", "", "", ""],
+                    ["(-) Pemasaran & Iklan", ...monthlyData.map(m => toReal(-m.pl.opex_mkt))],
+                    ["(-) Konten Kreatif", ...monthlyData.map(m => toReal(-m.pl.opex_content))],
+                    ["(-) Gaji & THR", ...monthlyData.map(m => toReal(-m.pl.opex_salary))],
+                    ["(-) Sewa", ...monthlyData.map(m => toReal(-m.pl.opex_rent))],
+                    ["(-) Beban Kantor", ...monthlyData.map(m => toReal(-m.pl.opex_office))],
+                    ["(-) Perbaikan", ...monthlyData.map(m => toReal(-m.pl.opex_repair))],
+                    ["(-) R&D", ...monthlyData.map(m => toReal(-m.pl.opex_rnd))],
+
+                    ["Total Operating Expenses", ...monthlyData.map(m => toReal(-m.pl.totalOpex))],
+                    
+                    ["EBITDA", ...monthlyData.map(m => toReal(m.pl.ebit + m.pl.depr))], // approx logic for display
+                    ["(-) Amortization & Depr", ...monthlyData.map(m => toReal(-m.pl.depr))],
+                    ["EBIT", ...monthlyData.map(m => toReal(m.pl.ebit))],
+                    ["(-) Finance Cost", ...monthlyData.map(m => toReal(-m.pl.int))],
+                    ["(-) Tax", ...monthlyData.map(m => toReal(-m.pl.tax))],
+                    ["Net Income", ...monthlyData.map(m => toReal(m.pl.netIncome))],
                 ];
                 const wsIncome = XLSX.utils.aoa_to_sheet(incomeRows);
                 XLSX.utils.book_append_sheet(wb, wsIncome, "Income Statement");
@@ -432,14 +447,14 @@
                 // 2. Tab Cash Flow
                 const cfRows = [
                     headerRow,
-                    ["Net Income", ...monthlyData.map(m => m.cf.ni)],
-                    ["(+) Amort & Depr", ...monthlyData.map(m => m.cf.depr)],
-                    ["(Inc)/Dec Inventory", ...monthlyData.map(m => m.cf.chgInv)],
-                    ["Inc/(Dec) Payable", ...monthlyData.map(m => m.cf.chgAp)],
-                    ["Cash From Ops", ...monthlyData.map(m => m.cf.cfo)],
-                    ["Net Cash Change", ...monthlyData.map(m => m.cf.netChange)],
-                    ["Beg. Cash", ...monthlyData.map(m => m.cf.begCash)],
-                    ["End. Cash", ...monthlyData.map(m => m.cf.endCash)],
+                    ["Net Income", ...monthlyData.map(m => toReal(m.cf.ni))],
+                    ["(+) Amort & Depr", ...monthlyData.map(m => toReal(m.cf.depr))],
+                    ["(Inc)/Dec Inventory", ...monthlyData.map(m => toReal(m.cf.chgInv))],
+                    ["Inc/(Dec) Payable", ...monthlyData.map(m => toReal(m.cf.chgAp))],
+                    ["Cash From Ops", ...monthlyData.map(m => toReal(m.cf.cfo))],
+                    ["Net Cash Change", ...monthlyData.map(m => toReal(m.cf.netChange))],
+                    ["Beg. Cash", ...monthlyData.map(m => toReal(m.cf.begCash))],
+                    ["End. Cash", ...monthlyData.map(m => toReal(m.cf.endCash))],
                 ];
                 const wsCf = XLSX.utils.aoa_to_sheet(cfRows);
                 XLSX.utils.book_append_sheet(wb, wsCf, "Cash Flow");
@@ -448,22 +463,23 @@
                 const bsRows = [
                     headerRow,
                     ["ASSETS", "", "", "", "", "", "", "", "", "", "", "", ""],
-                    ["Cash", ...monthlyData.map(m => m.bs.cash)],
-                    ["Inventory", ...monthlyData.map(m => m.bs.inventory)],
-                    ["Fixed Assets", ...monthlyData.map(m => m.bs.fixedAssets)],
-                    ["TOTAL ASSETS", ...monthlyData.map(m => m.bs.totalAssets)],
+                    ["Cash", ...monthlyData.map(m => toReal(m.bs.cash))],
+                    ["Inventory", ...monthlyData.map(m => toReal(m.bs.inventory))],
+                    ["Fixed Assets", ...monthlyData.map(m => toReal(m.bs.fixedAssets))],
+                    ["TOTAL ASSETS", ...monthlyData.map(m => toReal(m.bs.totalAssets))],
                     ["LIABILITIES & EQUITY", "", "", "", "", "", "", "", "", "", "", "", ""],
-                    ["Accounts Payable", ...monthlyData.map(m => m.bs.ap)],
-                    ["Debt", ...monthlyData.map(m => m.bs.debt)],
-                    ["Equity", ...monthlyData.map(m => m.bs.equity)],
-                    ["Retained Earnings", ...monthlyData.map(m => m.bs.re)],
-                    ["TOTAL LIAB & EQ", ...monthlyData.map(m => m.bs.totalLiabEq)],
+                    ["Accounts Payable", ...monthlyData.map(m => toReal(m.bs.ap))],
+                    ["Debt", ...monthlyData.map(m => toReal(m.bs.debt))],
+                    ["Equity", ...monthlyData.map(m => toReal(m.bs.equity))],
+                    ["Retained Earnings", ...monthlyData.map(m => toReal(m.bs.re))],
+                    ["TOTAL LIAB & EQ", ...monthlyData.map(m => toReal(m.bs.totalLiabEq))],
                 ];
                 const wsBs = XLSX.utils.aoa_to_sheet(bsRows);
                 XLSX.utils.book_append_sheet(wb, wsBs, "Balance Sheet");
 
                 // 4. Tab Variables (Assumptions) for Import
                 // Format: Key | Value
+                // NOTE: Bagian ini TIDAK dikalikan 1.000.000 agar fitur IMPORT tetap berjalan normal (karena logic aplikasi pakai satuan Juta)
                 const variableRows = [
                     ["VARIABLE_KEY", "VALUE"],
                     ...Object.entries(inputs),
