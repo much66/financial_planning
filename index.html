@@ -65,6 +65,13 @@
 
         const formatDecimal = (num) => {
              if (num === '' || num === null || num === undefined) return '';
+             // Limit decimals to 1 or 2 digits if it's a calculated percentage
+             if (typeof num === 'number') {
+                 // Check if it has many decimals
+                 if (num % 1 !== 0) {
+                     return num.toFixed(1).replace('.', ',');
+                 }
+             }
              return num.toString().replace('.', ',');
         }
         const parseDecimal = (str) => {
@@ -197,7 +204,9 @@
         const Card = ({ title, value, sub, color }) => (
             <div className={`p-4 rounded shadow-sm border ${color}`}>
                 <h3 className="text-xs font-bold opacity-70 uppercase">{title}</h3>
-                <p className="text-2xl font-bold my-1">{value}</p>
+                <div className="text-2xl font-bold my-1 flex items-baseline gap-1">
+                    {value}
+                </div>
                 <p className="text-xs opacity-80">{sub}</p>
             </div>
         );
@@ -330,8 +339,9 @@
             });
 
             // State for Overrides (Manual Inputs)
+            // UPDATED: Month 3 changed from 37922 to 37923
             const [revenueOverrides, setRevenueOverrides] = useState({
-                1: 18942, 2: 34700, 3: 37922, 4: 18083, 5: 21607, 6: 20657,
+                1: 18942, 2: 34700, 3: 37923, 4: 18083, 5: 21607, 6: 20657,
                 7: 17809, 8: 17564, 9: 17504, 10: 17589, 11: 23020, 12: 19602
             });
             const [capexOverrides, setCapexOverrides] = useState({});
@@ -362,8 +372,6 @@
 
             const handleRevenueChange = (m, v) => handleOverrideChange(setRevenueOverrides, m, v);
             const handleCapexChange = (m, v) => handleOverrideChange(setCapexOverrides, m, v);
-            
-            // New Handlers
             const handleDebtInChange = (m, v) => handleOverrideChange(setDebtInOverrides, m, v);
             const handleDebtOutChange = (m, v) => handleOverrideChange(setDebtOutOverrides, m, v);
             const handleEquityInChange = (m, v) => handleOverrideChange(setEquityInOverrides, m, v);
@@ -655,8 +663,8 @@
                         },
                         bs: { 
                             cash: endCash, inventory, fixedAssets, totalAssets: endCash + inventory + fixedAssets, 
-                            ap, debt, totalLiabilities, // Breakdown Liabilities
-                            equity, re, totalEquity,    // Breakdown Equity
+                            ap, debt, totalLiabilities, 
+                            equity, re, totalEquity,    
                             totalLiabEq: totalLiabilities + totalEquity 
                         },
                         cf: { 
@@ -677,6 +685,11 @@
             }, [inputs, revenueOverrides, capexOverrides, debtInOverrides, debtOutOverrides, equityInOverrides, equityOutOverrides]); 
 
             const fmt = (n) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
+
+            // --- CALCULATE TOTALS FOR DASHBOARD ---
+            const totalGrossRev = monthlyData.reduce((acc, curr) => acc + curr.pl.rev, 0);
+            const totalNetIncome = monthlyData.reduce((acc, curr) => acc + curr.pl.netIncome, 0);
+            const netIncomeMargin = totalGrossRev ? (totalNetIncome / totalGrossRev) * 100 : 0;
 
             return (
                 <div className="flex flex-col h-screen bg-gray-50 text-slate-800 font-sans">
@@ -767,7 +780,7 @@
                     {/* MAIN CONTENT */}
                     <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
                     <div className="flex bg-white border-b border-gray-200 px-4 pt-2 gap-4 overflow-x-auto">
-                        {['dashboard', 'income', 'balance', 'cashflow'].map(t => (
+                        {['dashboard', 'income', 'cashflow', 'balance'].map(t => (
                         <button 
                             key={t}
                             onClick={() => setActiveTab(t)}
@@ -783,11 +796,41 @@
                         {/* DASHBOARD & OTHER TABS (Same as before) */}
                         {activeTab === 'dashboard' && (
                         <div className="space-y-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <Card title="Total Net Revenue" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netRevenue, 0))} sub="Juta IDR (After Fees)" color="bg-blue-50 text-blue-800" />
-                            <Card title="Total Opex (Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.totalOpex, 0))} sub="Total Beban Operasional" color="bg-orange-50 text-orange-800" />
-                            <Card title="Net Income" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netIncome, 0))} sub="Profit Bersih Setahun" color="bg-purple-50 text-purple-800" />
+                            {/* --- HERO CARD FOR GROSS REVENUE --- */}
+                            <div className="bg-white rounded shadow-sm border border-indigo-100 p-6 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-white">
+                                <div>
+                                    <h3 className="text-sm font-bold opacity-70 uppercase text-indigo-900">Total Gross Revenue (Omzet Kotor)</h3>
+                                    <div className="text-4xl font-bold my-2 text-indigo-800">{fmt(totalGrossRev)}</div>
+                                    <p className="text-sm text-indigo-600 opacity-80">Total Pendapatan Sebelum Potongan</p>
+                                </div>
+                                <div className="hidden md:block text-indigo-200">
+                                    <TrendingUp size={48} />
+                                </div>
                             </div>
+
+                            {/* --- KEY METRICS GRID --- */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <Card title="Total Net Revenue" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netRevenue, 0))} sub="Juta IDR (After Fees)" color="bg-blue-50 text-blue-800" />
+                                <Card title="Total Opex (Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.totalOpex, 0))} sub="Total Beban Operasional" color="bg-orange-50 text-orange-800" />
+                                <Card 
+                                    title="Net Income (NPAT)" 
+                                    value={
+                                        <>
+                                            {fmt(totalNetIncome)}
+                                            <span className="text-sm font-normal ml-2 opacity-80">({formatDecimal(netIncomeMargin)}%)</span>
+                                        </>
+                                    } 
+                                    sub="% dari Gross Revenue" 
+                                    color="bg-purple-50 text-purple-800" 
+                                />
+                            </div>
+                            
+                            {/* NEW ROW FOR LIABILITIES & EQUITY */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <Card title="Total Liabilities (End Year)" value={fmt(monthlyData[11].bs.totalLiabilities)} sub="Posisi Akhir Tahun (Bulan 12)" color="bg-red-50 text-red-800" />
+                                <Card title="Total Equity (End Year)" value={fmt(monthlyData[11].bs.totalEquity)} sub="Posisi Akhir Tahun (Bulan 12)" color="bg-emerald-50 text-emerald-800" />
+                            </div>
+
                             {/* ... Dashboard Charts ... */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <div className="bg-white p-4 rounded shadow-sm border">
