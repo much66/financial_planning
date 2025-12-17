@@ -48,12 +48,14 @@
         const Download = (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconWrapper>;
         const Upload = (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></IconWrapper>;
 
-        // --- HELPER FUNCTIONS BARU ---
+        // --- HELPER FUNCTIONS ---
         
-        // 1. Format Currency (Ribuan pakai Titik) -> "1.000.000"
         const formatCurrency = (num) => {
             if (num === '' || num === null || num === undefined) return '';
             let str = num.toString().replace(/\./g, '');
+            if (str.startsWith('-')) {
+                return '-' + str.substring(1).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+            }
             return str.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         };
         const parseCurrency = (str) => {
@@ -61,15 +63,12 @@
             return str.toString().replace(/\./g, '');
         };
 
-        // 2. Format Decimal (Desimal pakai Koma) -> "2,5"
         const formatDecimal = (num) => {
              if (num === '' || num === null || num === undefined) return '';
-             // Ganti titik (format JS) jadi koma (format Indo) untuk tampilan
              return num.toString().replace('.', ',');
         }
         const parseDecimal = (str) => {
              if(!str) return '';
-             // Ganti koma (input user) jadi titik (format JS) untuk kalkulasi
              return str.toString().replace(',', '.');
         }
 
@@ -82,16 +81,11 @@
             </div>
         );
 
-        // MODIFIKASI 1: Input Cerdas (Otomatis deteksi mode persen vs uang)
         const Input = ({ label, name, val, onChange, suffix }) => {
-            const isPercentage = suffix === '%'; // Deteksi jika ini input persen
-            
-            // Local state untuk menyimpan apa yang diketik user sementara waktu
-            // Ini mencegah kursor lompat atau koma hilang saat mengetik "2,"
+            const isPercentage = suffix === '%'; 
             const [localVal, setLocalVal] = useState("");
             const [isEditing, setIsEditing] = useState(false);
 
-            // Sync dari parent ke local saat tidak diedit
             useEffect(() => {
                 if (!isEditing) {
                     const formatted = isPercentage ? formatDecimal(val) : formatCurrency(val);
@@ -101,19 +95,10 @@
 
             const handleLocalChange = (e) => {
                 const v = e.target.value;
-                
-                // Regex Validasi
-                // Jika Persen: Boleh angka dan koma.
-                // Jika Uang: Boleh angka dan titik.
-                const regex = isPercentage ? /^[\d,]*$/ : /^[\d.]*$/;
-
+                const regex = isPercentage ? /^[\d,]*$/ : /^[-]?[\d.]*$/;
                 if (regex.test(v)) {
-                    setLocalVal(v); // Update tampilan lokal (misal "2,")
-                    
-                    // Parse dan kirim ke parent untuk kalkulasi live
+                    setLocalVal(v); 
                     const parsed = isPercentage ? parseDecimal(v) : parseCurrency(v);
-                    
-                    // Kirim ke parent (walaupun string "2.", parent akan parseFloat jadi 2)
                     onChange({
                         target: { name: name, value: parsed }
                     });
@@ -140,12 +125,10 @@
             );
         };
 
-        // MODIFIKASI 2: OpexInput dengan dukungan koma untuk %
         const OpexInput = ({ label, id, inputs, onChange }) => {
             const fixedName = `opex_${id}_fixed`;
             const pctName = `opex_${id}_pct`;
             
-            // --- Logic untuk Input FIX (Rupiah) ---
             const [localFix, setLocalFix] = useState("");
             const [editFix, setEditFix] = useState(false);
             
@@ -161,7 +144,6 @@
                 }
             };
 
-            // --- Logic untuk Input PCT (Persen) ---
             const [localPct, setLocalPct] = useState("");
             const [editPct, setEditPct] = useState(false);
 
@@ -171,7 +153,6 @@
 
             const changePct = (e) => {
                 const v = e.target.value;
-                // Izinkan angka dan koma
                 if (/^[\d,]*$/.test(v)) {
                     setLocalPct(v);
                     onChange({ target: { name: pctName, value: parseDecimal(v) } });
@@ -182,7 +163,6 @@
                 <div className="flex items-center justify-between mb-2">
                     <label className="text-xs text-gray-600 truncate flex-1 mr-1" title={label}>{label}</label>
                     <div className="flex gap-1">
-                        {/* Fixed Input (Rp) */}
                         <div className="relative">
                             <input 
                                 type="text" 
@@ -196,8 +176,6 @@
                             />
                             <span className="absolute right-1.5 top-1 text-[10px] text-gray-400 pointer-events-none">Rp</span>
                         </div>
-                        
-                        {/* Pct Input (%) - Support Koma */}
                         <div className="relative">
                             <input 
                                 type="text"
@@ -232,13 +210,11 @@
             </div>
         );
 
-        // MODIFIKASI: Text-center pada Header Bulan
         const TableHead = ({ data }) => (
             <thead className="bg-gray-100 text-gray-600">
                 <tr>
                 <th className="text-left p-3 min-w-[150px] sticky left-0 bg-gray-100 border-r border-gray-200 z-10">Item (Juta IDR)</th>
                 {data.map(m => (
-                    // Diubah ke text-center dan menampilkan nama bulan (Januari, dst)
                     <th key={m.month} className="text-center p-3 font-medium min-w-[80px]">{m.name}</th>
                 ))}
                 </tr>
@@ -287,19 +263,21 @@
                     const isNeg = displayVal < 0;
 
                     if (editable) {
-                        // Logic edit manual di tabel (Gross Revenue)
-                        // Disini kita asumsikan Revenue adalah Ribuan (bukan desimal kecil), jadi pakai formatCurrency
                         const isOverridden = overrides && overrides[m.month] !== undefined;
-                        const cellValue = isOverridden ? overrides[m.month] : Math.round(val);
+                        // Use 0 as default display if override is empty/undefined, unless it's explicitly 0
+                        const cellValue = isOverridden ? overrides[m.month] : (val || 0);
                         
                         return (
                             <td key={i} className="p-1 text-right">
                             <input 
                                 type="text"
-                                value={formatCurrency(cellValue)} 
+                                placeholder="-"
+                                value={formatCurrency(cellValue === 0 ? '' : cellValue)} 
                                 onChange={(e) => {
                                     const v = e.target.value;
-                                    if (/^[\d.]*$/.test(v)) {
+                                    // Allow numbers. If 'neg' prop is true (like Repayment), we still allow typing positives
+                                    // but we just pass the number to the handler.
+                                    if (/^[-]?[\d.]*$/.test(v)) {
                                         onCellChange(m.month, parseCurrency(v));
                                     }
                                 }}
@@ -333,65 +311,50 @@
             const [activeTab, setActiveTab] = useState('income'); 
             const fileInputRef = useRef(null);
 
-            // --- 1. INITIAL ASSUMPTIONS (INPUTS) ---
+            // --- 1. INITIAL ASSUMPTIONS ---
             const [inputs, setInputs] = useState({
-                // Revenue & Growth
-                baseRevenue: 800, 
-                monthlyGrowth: 2, 
-                
-                // Revenue Deductions
-                returnPct: 2,       
-                consignmentPct: 10, 
-                platformPct: 3,     
-
-                // Direct Costs
-                cogsPct: 50, 
-
-                // --- OPEX BREAKDOWN ---
-                opex_mkt_fixed: 10, opex_mkt_pct: 5,
-                opex_content_fixed: 5, opex_content_pct: 0,
-                opex_salary_fixed: 100, opex_salary_pct: 0,
-                opex_rent_fixed: 15, opex_rent_pct: 0,
-                opex_office_fixed: 5, opex_office_pct: 0.5,
-                opex_repair_fixed: 2, opex_repair_pct: 0.2,
-                opex_rnd_fixed: 5, opex_rnd_pct: 1,
-
-                // Financials
-                depreciationRate: 10, // Default 10% per tahun
-                taxRate: 22, 
-                annualInterestRate: 12, 
-                
-                // Working Capital
-                dsi: 60, 
-                dpo: 45, 
-                
-                // Opening Balance
-                startCash: 200,
-                startInventory: 400,
-                startFixedAssets: 5000,
-                startDebt: 1000,
-                startEquity: 4600, 
+                baseRevenue: 0, monthlyGrowth: 0, 
+                returnPct: 0.1, consignmentPct: 12.15, platformPct: 3.33,     
+                cogsPct: 40, 
+                opex_mkt_fixed: 0, opex_mkt_pct: 5,
+                opex_content_fixed: 0, opex_content_pct: 2,
+                opex_salary_fixed: 0, opex_salary_pct: 7,
+                opex_rent_fixed: 0, opex_rent_pct: 2.5,
+                opex_office_fixed: 0, opex_office_pct: 3,
+                opex_repair_fixed: 0, opex_repair_pct: 0.35,
+                opex_rnd_fixed: 0, opex_rnd_pct: 0.1,
+                depreciationRate: 10, taxRate: 22, annualInterestRate: 6, 
+                dsi: 150, dpo: 60, 
+                startCash: 10000, startInventory: 30500, startFixedAssets: 5000,
+                // --- UPDATE: DEFAULT START DEBT & EQUITY = 0 ---
+                startDebt: 0, 
+                startEquity: 0, 
                 startRetainedEarnings: 0 
             });
 
-            const [revenueOverrides, setRevenueOverrides] = useState({});
+            // State for Overrides (Manual Inputs)
+            const [revenueOverrides, setRevenueOverrides] = useState({
+                1: 18942, 2: 34700, 3: 37922, 4: 18083, 5: 21607, 6: 20657,
+                7: 17809, 8: 17564, 9: 17504, 10: 17589, 11: 23020, 12: 19602
+            });
+            const [capexOverrides, setCapexOverrides] = useState({});
+            
+            // Split Debt & Equity into In/Out
+            const [debtInOverrides, setDebtInOverrides] = useState({});
+            const [debtOutOverrides, setDebtOutOverrides] = useState({});
+            const [equityInOverrides, setEquityInOverrides] = useState({});
+            const [equityOutOverrides, setEquityOutOverrides] = useState({});
 
             const handleChange = (e) => {
                 const { name, value } = e.target;
-                
-                // Value yang masuk sudah diparsing (titik/koma sudah dihandle komponen Input)
-                // Tapi mungkin masih string "2.5" atau "1000"
-                // Kita parse ke Float agar state tersimpan sebagai Angka Murni
-                
-                // Handle empty string agar jadi 0
                 const numValue = value === "" ? 0 : parseFloat(value);
                 setInputs(prev => ({ ...prev, [name]: isNaN(numValue) ? 0 : numValue }));
             };
 
-            const handleRevenueChange = (month, val) => {
-                setRevenueOverrides(prev => {
+            const handleOverrideChange = (setter, month, val) => {
+                setter(prev => {
                     const newOverrides = { ...prev };
-                    if (val === '' || val === null) {
+                    if (val === '' || val === null || val === '-') { 
                         delete newOverrides[month]; 
                     } else {
                         newOverrides[month] = parseFloat(val);
@@ -400,15 +363,21 @@
                 });
             };
 
+            const handleRevenueChange = (m, v) => handleOverrideChange(setRevenueOverrides, m, v);
+            const handleCapexChange = (m, v) => handleOverrideChange(setCapexOverrides, m, v);
+            
+            // New Handlers
+            const handleDebtInChange = (m, v) => handleOverrideChange(setDebtInOverrides, m, v);
+            const handleDebtOutChange = (m, v) => handleOverrideChange(setDebtOutOverrides, m, v);
+            const handleEquityInChange = (m, v) => handleOverrideChange(setEquityInOverrides, m, v);
+            const handleEquityOutChange = (m, v) => handleOverrideChange(setEquityOutOverrides, m, v);
+
             // --- EXPORT TO EXCEL ---
             const handleExport = () => {
                 const wb = XLSX.utils.book_new();
 
-                // Helper to create header row (MODIFIKASI: Nama Bulan)
                 const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
                 const headerRow = ["Item", ...monthNames];
-
-                // MODIFIKASI: Helper untuk konversi ke Angka Real (Rupiah Penuh)
                 const toReal = (n) => (n || 0) * 1_000_000;
 
                 // 1. Tab Income Statement
@@ -422,7 +391,6 @@
                     ["(-) COGS", ...monthlyData.map(m => toReal(-m.pl.cogs))],
                     ["Gross Profit", ...monthlyData.map(m => toReal(m.pl.gp))],
                     
-                    // MODIFIKASI: Detail OPEX sesuai Web
                     ["Operating Expenses (Detail)", "", "", "", "", "", "", "", "", "", "", "", ""],
                     ["(-) Pemasaran & Iklan", ...monthlyData.map(m => toReal(-m.pl.opex_mkt))],
                     ["(-) Konten Kreatif", ...monthlyData.map(m => toReal(-m.pl.opex_content))],
@@ -434,7 +402,7 @@
 
                     ["Total Operating Expenses", ...monthlyData.map(m => toReal(-m.pl.totalOpex))],
                     
-                    ["EBITDA", ...monthlyData.map(m => toReal(m.pl.ebit + m.pl.depr))], // approx logic for display
+                    ["EBITDA", ...monthlyData.map(m => toReal(m.pl.ebit + m.pl.depr))], 
                     ["(-) Amortization & Depr", ...monthlyData.map(m => toReal(-m.pl.depr))],
                     ["EBIT", ...monthlyData.map(m => toReal(m.pl.ebit))],
                     ["(-) Finance Cost", ...monthlyData.map(m => toReal(-m.pl.int))],
@@ -452,6 +420,18 @@
                     ["(Inc)/Dec Inventory", ...monthlyData.map(m => toReal(m.cf.chgInv))],
                     ["Inc/(Dec) Payable", ...monthlyData.map(m => toReal(m.cf.chgAp))],
                     ["Cash From Ops", ...monthlyData.map(m => toReal(m.cf.cfo))],
+                    
+                    ["Investing Activities", "", "", "", "", "", "", "", "", "", "", "", ""],
+                    ["Capex (Belanja Aset)", ...monthlyData.map(m => toReal(m.cf.capex))],
+                    ["Cash From Investing", ...monthlyData.map(m => toReal(m.cf.cfi))],
+
+                    ["Financing Activities", "", "", "", "", "", "", "", "", "", "", "", ""],
+                    ["(+) Debt Issuance", ...monthlyData.map(m => toReal(m.cf.debtIn))],
+                    ["(-) Debt Repayment", ...monthlyData.map(m => toReal(-m.cf.debtOut))],
+                    ["(+) Equity Injection", ...monthlyData.map(m => toReal(m.cf.eqIn))],
+                    ["(-) Equity Withdrawal", ...monthlyData.map(m => toReal(-m.cf.eqOut))],
+                    ["Cash From Financing", ...monthlyData.map(m => toReal(m.cf.cff))],
+                    
                     ["Net Cash Change", ...monthlyData.map(m => toReal(m.cf.netChange))],
                     ["Beg. Cash", ...monthlyData.map(m => toReal(m.cf.begCash))],
                     ["End. Cash", ...monthlyData.map(m => toReal(m.cf.endCash))],
@@ -459,7 +439,7 @@
                 const wsCf = XLSX.utils.aoa_to_sheet(cfRows);
                 XLSX.utils.book_append_sheet(wb, wsCf, "Cash Flow");
 
-                // 3. Tab Balance Sheet (User mentioned Income, but standard is BS)
+                // 3. Tab Balance Sheet
                 const bsRows = [
                     headerRow,
                     ["ASSETS", "", "", "", "", "", "", "", "", "", "", "", ""],
@@ -477,19 +457,21 @@
                 const wsBs = XLSX.utils.aoa_to_sheet(bsRows);
                 XLSX.utils.book_append_sheet(wb, wsBs, "Balance Sheet");
 
-                // 4. Tab Variables (Assumptions) for Import
-                // Format: Key | Value
-                // NOTE: Bagian ini TIDAK dikalikan 1.000.000 agar fitur IMPORT tetap berjalan normal (karena logic aplikasi pakai satuan Juta)
+                // 4. Tab Variables
                 const variableRows = [
                     ["VARIABLE_KEY", "VALUE"],
                     ...Object.entries(inputs),
-                    // Serialize revenueOverrides object to JSON string for easy restore
-                    ["REVENUE_OVERRIDES_JSON", JSON.stringify(revenueOverrides)] 
+                    ["REVENUE_OVERRIDES_JSON", JSON.stringify(revenueOverrides)],
+                    ["CAPEX_OVERRIDES_JSON", JSON.stringify(capexOverrides)],
+                    // Save new separate overrides
+                    ["DEBT_IN_OVERRIDES", JSON.stringify(debtInOverrides)],
+                    ["DEBT_OUT_OVERRIDES", JSON.stringify(debtOutOverrides)],
+                    ["EQUITY_IN_OVERRIDES", JSON.stringify(equityInOverrides)],
+                    ["EQUITY_OUT_OVERRIDES", JSON.stringify(equityOutOverrides)]
                 ];
                 const wsVars = XLSX.utils.aoa_to_sheet(variableRows);
                 XLSX.utils.book_append_sheet(wb, wsVars, "Variables");
 
-                // Download File
                 XLSX.writeFile(wb, "Financial_Model_Export.xlsx");
             };
 
@@ -507,7 +489,6 @@
                     const bstr = evt.target.result;
                     const wb = XLSX.read(bstr, { type: 'binary' });
 
-                    // Look for "Variables" sheet
                     const wsName = "Variables";
                     if (!wb.Sheets[wsName]) {
                         alert("File Excel tidak valid atau tidak memiliki tab 'Variables'.");
@@ -517,35 +498,66 @@
                     const ws = wb.Sheets[wsName];
                     const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
 
-                    // Parse Data back to state
                     const newInputs = { ...inputs };
-                    let newOverrides = {};
+                    let newRev = {}, newCapex = {};
+                    let newDebtIn = {}, newDebtOut = {};
+                    let newEqIn = {}, newEqOut = {};
 
-                    // Start from index 1 to skip header "VARIABLE_KEY", "VALUE"
+                    // Backwards Compatibility logic
+                    let oldDebtOverrides = null, oldEquityOverrides = null;
+
                     for (let i = 1; i < data.length; i++) {
                         const row = data[i];
                         if (row && row.length >= 2) {
                             const key = row[0];
                             const val = row[1];
 
-                            if (key === "REVENUE_OVERRIDES_JSON") {
-                                try {
-                                    newOverrides = JSON.parse(val);
-                                } catch (err) {
-                                    console.error("Failed parsing overrides", err);
+                            try {
+                                if (key === "REVENUE_OVERRIDES_JSON") newRev = JSON.parse(val);
+                                else if (key === "CAPEX_OVERRIDES_JSON") newCapex = JSON.parse(val);
+                                else if (key === "DEBT_IN_OVERRIDES") newDebtIn = JSON.parse(val);
+                                else if (key === "DEBT_OUT_OVERRIDES") newDebtOut = JSON.parse(val);
+                                else if (key === "EQUITY_IN_OVERRIDES") newEqIn = JSON.parse(val);
+                                else if (key === "EQUITY_OUT_OVERRIDES") newEqOut = JSON.parse(val);
+                                
+                                // Legacy keys support
+                                else if (key === "DEBT_OVERRIDES_JSON") oldDebtOverrides = JSON.parse(val);
+                                else if (key === "EQUITY_OVERRIDES_JSON") oldEquityOverrides = JSON.parse(val);
+                                
+                                else if (newInputs.hasOwnProperty(key)) {
+                                    newInputs[key] = parseFloat(val);
                                 }
-                            } else if (newInputs.hasOwnProperty(key)) {
-                                newInputs[key] = parseFloat(val);
+                            } catch (err) {
+                                console.error("Error parsing", key, err);
                             }
                         }
                     }
 
+                    // Process Legacy Debt Data if exists
+                    if (oldDebtOverrides) {
+                        Object.entries(oldDebtOverrides).forEach(([m, v]) => {
+                            if (v > 0) newDebtIn[m] = v;
+                            if (v < 0) newDebtOut[m] = Math.abs(v);
+                        });
+                    }
+                    if (oldEquityOverrides) {
+                        Object.entries(oldEquityOverrides).forEach(([m, v]) => {
+                            if (v > 0) newEqIn[m] = v;
+                            if (v < 0) newEqOut[m] = Math.abs(v);
+                        });
+                    }
+
                     setInputs(newInputs);
-                    setRevenueOverrides(newOverrides);
+                    setRevenueOverrides(newRev);
+                    setCapexOverrides(newCapex);
+                    setDebtInOverrides(newDebtIn);
+                    setDebtOutOverrides(newDebtOut);
+                    setEquityInOverrides(newEqIn);
+                    setEquityOutOverrides(newEqOut);
+                    
                     alert("Data berhasil diimport!");
                 };
                 reader.readAsBinaryString(file);
-                // Reset file input
                 e.target.value = null;
             };
 
@@ -553,106 +565,114 @@
             // --- 2. CALCULATION ENGINE ---
             const monthlyData = useMemo(() => {
                 let data = [];
-                // MODIFIKASI: Array nama bulan
                 const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
                 
                 let prev = {
-                rev: 0,
-                inventory: inputs.startInventory,
-                ap: (inputs.baseRevenue * (inputs.cogsPct/100) / 30) * inputs.dpo, 
-                fixedAssets: inputs.startFixedAssets,
-                cash: inputs.startCash,
-                re: inputs.startRetainedEarnings,
-                debt: inputs.startDebt,
-                equity: inputs.startEquity
+                    rev: 0,
+                    inventory: inputs.startInventory,
+                    ap: (inputs.baseRevenue * (inputs.cogsPct/100) / 30) * inputs.dpo, 
+                    fixedAssets: inputs.startFixedAssets,
+                    cash: inputs.startCash,
+                    re: inputs.startRetainedEarnings,
+                    debt: inputs.startDebt,
+                    equity: inputs.startEquity
                 };
 
                 for (let m = 1; m <= 12; m++) {
-                // A. REVENUE
-                let grossRev;
-                if (revenueOverrides[m] !== undefined) {
-                    grossRev = revenueOverrides[m];
-                } else {
-                    grossRev = m === 1 ? inputs.baseRevenue : prev.rev * (1 + inputs.monthlyGrowth / 100);
-                }
+                    // ... Revenue, COGS, Opex logic unchanged ...
+                    let grossRev;
+                    if (revenueOverrides[m] !== undefined) {
+                        grossRev = revenueOverrides[m];
+                    } else {
+                        grossRev = m === 1 ? inputs.baseRevenue : prev.rev * (1 + inputs.monthlyGrowth / 100);
+                    }
 
-                const salesReturn = grossRev * (inputs.returnPct / 100);
-                const consignmentFee = grossRev * (inputs.consignmentPct / 100);
-                const platformFee = grossRev * (inputs.platformPct / 100);
-                
-                const netRevenue = grossRev - salesReturn - consignmentFee - platformFee;
+                    const salesReturn = grossRev * (inputs.returnPct / 100);
+                    const consignmentFee = grossRev * (inputs.consignmentPct / 100);
+                    const platformFee = grossRev * (inputs.platformPct / 100);
+                    const netRevenue = grossRev - salesReturn - consignmentFee - platformFee;
 
-                // B. COGS
-                const cogs = grossRev * (inputs.cogsPct / 100);
-                const grossProfit = netRevenue - cogs;
-                
-                // C. OPEX BREAKDOWN CALCULATION
-                // Logic: Fixed + (NetRevenue * %)
-                const calcOpex = (id) => inputs[`opex_${id}_fixed`] + (netRevenue * (inputs[`opex_${id}_pct`] / 100));
+                    const cogs = grossRev * (inputs.cogsPct / 100);
+                    const grossProfit = netRevenue - cogs;
+                    
+                    const calcOpex = (id) => inputs[`opex_${id}_fixed`] + (netRevenue * (inputs[`opex_${id}_pct`] / 100));
+                    const opex_mkt = calcOpex('mkt');
+                    const opex_content = calcOpex('content');
+                    const opex_salary = calcOpex('salary');
+                    const opex_rent = calcOpex('rent');
+                    const opex_office = calcOpex('office');
+                    const opex_repair = calcOpex('repair');
+                    const opex_rnd = calcOpex('rnd');
+                    const totalOpex = opex_mkt + opex_content + opex_salary + opex_rent + opex_office + opex_repair + opex_rnd;
 
-                const opex_mkt = calcOpex('mkt');
-                const opex_content = calcOpex('content');
-                const opex_salary = calcOpex('salary');
-                const opex_rent = calcOpex('rent');
-                const opex_office = calcOpex('office');
-                const opex_repair = calcOpex('repair');
-                const opex_rnd = calcOpex('rnd');
+                    const depr = (inputs.startFixedAssets * (inputs.depreciationRate / 100)) / 12; 
+                    const ebit = grossProfit - totalOpex - depr;
+                    const interest = (prev.debt * (inputs.annualInterestRate/100)) / 12; 
+                    const ebt = ebit - interest;
+                    const tax = ebt > 0 ? ebt * (inputs.taxRate / 100) : 0;
+                    const netIncome = ebt - tax;
 
-                const totalOpex = opex_mkt + opex_content + opex_salary + opex_rent + opex_office + opex_repair + opex_rnd;
+                    // --- RETRIEVE MANUAL OVERRIDES FOR CF ---
+                    const capex = capexOverrides[m] || 0;
+                    
+                    // Split overrides
+                    const debtIn = debtInOverrides[m] || 0;
+                    const debtOut = debtOutOverrides[m] || 0;
+                    const chgDebt = debtIn - debtOut;
 
-                // Hitung Depresiasi berdasarkan input %
-                const depr = (inputs.startFixedAssets * (inputs.depreciationRate / 100)) / 12; 
-                
-                const ebit = grossProfit - totalOpex - depr;
-                const interest = (inputs.startDebt * (inputs.annualInterestRate/100)) / 12;
-                const ebt = ebit - interest;
-                const tax = ebt > 0 ? ebt * (inputs.taxRate / 100) : 0;
-                const netIncome = ebt - tax;
+                    const eqIn = equityInOverrides[m] || 0;
+                    const eqOut = equityOutOverrides[m] || 0;
+                    const chgEquity = eqIn - eqOut;
 
-                // D. BALANCE SHEET
-                const inventory = (cogs / 30) * inputs.dsi;
-                const ap = (cogs / 30) * inputs.dpo;
-                const fixedAssets = prev.fixedAssets - depr; 
-                const re = prev.re + netIncome;
-                const debt = inputs.startDebt;
-                const equity = inputs.startEquity;
+                    // D. BALANCE SHEET
+                    const inventory = (cogs / 30) * inputs.dsi;
+                    const ap = (cogs / 30) * inputs.dpo;
+                    const fixedAssets = prev.fixedAssets - depr + capex; 
+                    const re = prev.re + netIncome;
+                    const debt = prev.debt + chgDebt;
+                    const equity = prev.equity + chgEquity;
 
-                // E. CASH FLOW
-                const cfo_ni = netIncome;
-                const cfo_depr = depr;
-                const cfo_inv = -(inventory - prev.inventory);
-                const cfo_ap = (ap - prev.ap);
-                const cfo_total = cfo_ni + cfo_depr + cfo_inv + cfo_ap;
+                    // E. CASH FLOW
+                    const cfo_ni = netIncome;
+                    const cfo_depr = depr;
+                    const cfo_inv = -(inventory - prev.inventory);
+                    const cfo_ap = (ap - prev.ap);
+                    const cfo_total = cfo_ni + cfo_depr + cfo_inv + cfo_ap;
 
-                const cfi = 0; 
-                const cff = 0; 
-                
-                const netChange = cfo_total + cfi + cff;
-                const endCash = prev.cash + netChange;
+                    const cfi_total = -capex; 
+                    const cff_total = chgDebt + chgEquity;
+                    
+                    const netChange = cfo_total + cfi_total + cff_total;
+                    const endCash = prev.cash + netChange;
 
-                const monthObj = {
-                    month: m,
-                    name: monthNames[m-1], // Menggunakan nama bulan dari array
-                    pl: { 
-                        rev: grossRev, 
-                        salesReturn, consignmentFee, platformFee, netRevenue,
-                        cogs, gp: grossProfit, 
-                        // Opex Detail
-                        opex_mkt, opex_content, opex_salary, opex_rent, opex_office, opex_repair, opex_rnd,
-                        totalOpex,
-                        depr, ebit, int: interest, tax, netIncome 
-                    },
-                    bs: { cash: endCash, inventory, fixedAssets, totalAssets: endCash + inventory + fixedAssets, ap, debt, equity, re, totalLiabEq: ap + debt + equity + re },
-                    cf: { ni: cfo_ni, depr: cfo_depr, chgInv: cfo_inv, chgAp: cfo_ap, cfo: cfo_total, netChange, begCash: prev.cash, endCash }
-                };
+                    const monthObj = {
+                        month: m,
+                        name: monthNames[m-1],
+                        pl: { 
+                            rev: grossRev, 
+                            salesReturn, consignmentFee, platformFee, netRevenue,
+                            cogs, gp: grossProfit, 
+                            opex_mkt, opex_content, opex_salary, opex_rent, opex_office, opex_repair, opex_rnd,
+                            totalOpex,
+                            depr, ebit, int: interest, tax, netIncome 
+                        },
+                        bs: { cash: endCash, inventory, fixedAssets, totalAssets: endCash + inventory + fixedAssets, ap, debt, equity, re, totalLiabEq: ap + debt + equity + re },
+                        cf: { 
+                            ni: cfo_ni, depr: cfo_depr, chgInv: cfo_inv, chgAp: cfo_ap, cfo: cfo_total, 
+                            capex, cfi: cfi_total,
+                            debtIn, debtOut, chgDebt, // Pass separate values
+                            eqIn, eqOut, chgEquity, // Pass separate values
+                            cff: cff_total,
+                            netChange, begCash: prev.cash, endCash 
+                        }
+                    };
 
-                data.push(monthObj);
-
-                prev = { ...monthObj.bs, rev: grossRev, inventory: inventory, ap: ap, cash: endCash };
+                    data.push(monthObj);
+                    prev = { ...monthObj.bs, rev: grossRev, inventory: inventory, ap: ap, cash: endCash };
                 }
 
                 return data;
-            }, [inputs, revenueOverrides]); 
+            }, [inputs, revenueOverrides, capexOverrides, debtInOverrides, debtOutOverrides, equityInOverrides, equityOutOverrides]); 
 
             const fmt = (n) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
 
@@ -680,7 +700,14 @@
                         <button onClick={handleExport} className="flex items-center gap-1 text-xs bg-white text-emerald-900 px-3 py-1 rounded hover:bg-gray-100 font-bold">
                             <Download size={14}/> Export Excel
                         </button>
-                        <button onClick={() => setRevenueOverrides({})} className="text-xs bg-emerald-800 px-3 py-1 rounded hover:bg-emerald-700 text-white">Reset Edits</button>
+                        <button onClick={() => {
+                            if(confirm("Reset semua edit manual?")) {
+                                setRevenueOverrides({});
+                                setCapexOverrides({});
+                                setDebtInOverrides({}); setDebtOutOverrides({});
+                                setEquityInOverrides({}); setEquityOutOverrides({});
+                            }
+                        }} className="text-xs bg-emerald-800 px-3 py-1 rounded hover:bg-emerald-700 text-white">Reset Edits</button>
                         <button onClick={() => window.location.reload()} className="p-2 hover:bg-emerald-800 rounded"><RefreshCw size={18}/></button>
                     </div>
                 </div>
@@ -692,10 +719,10 @@
                     <h2 className="font-bold text-gray-700 mb-4 flex items-center gap-2"><TrendingUp size={18}/> Assumptions</h2>
                     
                     <div className="space-y-6 text-sm">
-                        <Section title="1. Revenue & Direct Costs">
-                            <Input label="Jan Gross Rev" name="baseRevenue" val={inputs.baseRevenue} onChange={handleChange} suffix="Jt"/>
-                            <Input label="Growth (%)" name="monthlyGrowth" val={inputs.monthlyGrowth} onChange={handleChange} suffix="%"/>
-                            <div className="my-2 border-t border-dashed"></div>
+                        <Section title="1. Revenue Deductions">
+                            <div className="text-[10px] text-gray-500 mb-2 italic">
+                                *Gross Revenue diatur manual melalui tabel (Edit Mode).
+                            </div>
                             <Input label="Retur Penjualan" name="returnPct" val={inputs.returnPct} onChange={handleChange} suffix="%"/>
                             <Input label="Consignment Fee" name="consignmentPct" val={inputs.consignmentPct} onChange={handleChange} suffix="%"/>
                             <Input label="Platform Fee" name="platformPct" val={inputs.platformPct} onChange={handleChange} suffix="%"/>
@@ -707,7 +734,6 @@
                             <div className="bg-blue-50 p-2 rounded mb-2 text-[10px] text-blue-800 leading-tight">
                                 Isi kolom <b>Fix (Juta)</b> atau <b>% (dari Net Sales)</b> atau keduanya.
                             </div>
-                            
                             <OpexInput label="Pemasaran & Iklan" id="mkt" inputs={inputs} onChange={handleChange} />
                             <OpexInput label="Konten Kreatif" id="content" inputs={inputs} onChange={handleChange} />
                             <OpexInput label="Gaji & THR" id="salary" inputs={inputs} onChange={handleChange} />
@@ -729,6 +755,7 @@
                             <div className="my-2 border-t border-dashed"></div>
                             <Input label="Start Cash" name="startCash" val={inputs.startCash} onChange={handleChange} suffix="Jt"/>
                             <Input label="Start Inventory" name="startInventory" val={inputs.startInventory} onChange={handleChange} suffix="Jt"/>
+                            {/* Inputs updated to affect initial start debt/equity which is now 0 by default */}
                             <Input label="Start Debt" name="startDebt" val={inputs.startDebt} onChange={handleChange} suffix="Jt"/>
                             <Input label="Start Equity" name="startEquity" val={inputs.startEquity} onChange={handleChange} suffix="Jt"/>
                         </Section>
@@ -737,7 +764,6 @@
 
                     {/* MAIN CONTENT */}
                     <div className="flex-1 flex flex-col min-w-0 bg-gray-50">
-                    {/* Tabs */}
                     <div className="flex bg-white border-b border-gray-200 px-4 pt-2 gap-4 overflow-x-auto">
                         {['dashboard', 'income', 'balance', 'cashflow'].map(t => (
                         <button 
@@ -750,10 +776,9 @@
                         ))}
                     </div>
 
-                    {/* Table Area */}
                     <div className="flex-1 overflow-auto p-4">
                         
-                        {/* DASHBOARD VIEW */}
+                        {/* DASHBOARD & OTHER TABS (Same as before) */}
                         {activeTab === 'dashboard' && (
                         <div className="space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -761,7 +786,7 @@
                             <Card title="Total Opex (Year)" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.totalOpex, 0))} sub="Total Beban Operasional" color="bg-orange-50 text-orange-800" />
                             <Card title="Net Income" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netIncome, 0))} sub="Profit Bersih Setahun" color="bg-purple-50 text-purple-800" />
                             </div>
-
+                            {/* ... Dashboard Charts ... */}
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                 <div className="bg-white p-4 rounded shadow-sm border">
                                     <h3 className="font-bold text-gray-700 mb-4">Opex Breakdown (Total Setahun)</h3>
@@ -797,7 +822,6 @@
                         </div>
                         )}
 
-                        {/* INCOME STATEMENT TABLE */}
                         {activeTab === 'income' && (
                         <TableContainer>
                             <TableHead data={monthlyData} />
@@ -810,7 +834,6 @@
                             <Row label="(-) COGS" data={monthlyData} field="pl.cogs" neg />
                             <Row label="Gross Profit" data={monthlyData} field="pl.gp" bold bg Double />
                             
-                            {/* OPEX BREAKDOWN */}
                             <Row label="Operating Expenses" subHeader data={monthlyData} />
                             <Row label="(-) Pemasaran & Iklan" data={monthlyData} field="pl.opex_mkt" neg indent />
                             <Row label="(-) Konten Kreatif" data={monthlyData} field="pl.opex_content" neg indent />
@@ -822,7 +845,7 @@
                             <Row label="Total Opex" data={monthlyData} field="pl.totalOpex" bold bg neg />
 
                             <Row label="EBITDA" data={monthlyData} field="pl.ebit" bold />
-                            <Row label="(-) Amortization & Depreciation" data={monthlyData} field="pl.depr" neg textGray />
+                            <Row label="(-) Amortization & Depr" data={monthlyData} field="pl.depr" neg textGray />
                             <Row label="EBIT" data={monthlyData} field="pl.ebit" bold />
                             <Row label="(-) Finance Cost" data={monthlyData} field="pl.int" neg />
                             <Row label="(-) Tax" data={monthlyData} field="pl.tax" neg />
@@ -831,7 +854,6 @@
                         </TableContainer>
                         )}
 
-                        {/* BALANCE SHEET TABLE */}
                         {activeTab === 'balance' && (
                         <TableContainer>
                             <TableHead data={monthlyData} />
@@ -849,7 +871,7 @@
                                 <Row label="Retained Earnings" data={monthlyData} field="bs.re" />
                                 <Row label="TOTAL LIAB & EQ" data={monthlyData} field="bs.totalLiabEq" bold borderT />
                                 
-                                {/* Check Row */}
+                                {/* CHECK ROW WITH SMART TOOLTIP */}
                                 <tr>
                                 <td className="p-2 text-xs font-bold sticky left-0 bg-white border-r">Check Balance</td>
                                 {monthlyData.map((m, i) => {
@@ -862,22 +884,22 @@
                                             <AlertCircle size={14} className="text-red-500"/>
                                             <span className="text-[9px] text-red-500 font-bold">{fmt(diff)}</span>
                                             
-                                            {/* Restored Tooltip Logic */}
-                                            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-slate-800 text-white text-[10px] p-2 rounded z-20 w-48 text-left shadow-lg border border-slate-600">
-                                                <p className="font-bold mb-1 text-red-300">Tidak Balance!</p>
-                                                <p>Selisih: {fmt(diff)} Juta</p>
-                                                <div className="my-1 border-t border-slate-600"></div>
-                                                <p className="font-semibold text-slate-300">Saran Perbaikan:</p>
-                                                <ul className="list-disc pl-3 mt-1 space-y-1">
+                                            {/* TOOLTIP */}
+                                            <div className="absolute bottom-full mb-2 hidden group-hover:block bg-slate-800 text-white text-[10px] p-3 rounded z-20 w-56 text-left shadow-lg border border-slate-600">
+                                                <p className="font-bold mb-1 text-red-300">Neraca Tidak Seimbang!</p>
+                                                <p className="mb-2">Selisih: {fmt(diff)} Juta</p>
+                                                <div className="border-t border-slate-600 my-1"></div>
+                                                <p className="font-bold text-slate-300 mb-1">Saran Perbaikan:</p>
+                                                <ul className="list-disc pl-3 space-y-1 text-slate-200">
                                                     {diff > 0 ? (
                                                         <>
-                                                            <li>Kurangi Aset (misal: Cash/Inventory) sebesar {fmt(Math.abs(diff))}</li>
-                                                            <li>Atau Tambah Utang/Modal sebesar {fmt(Math.abs(diff))}</li>
+                                                            <li>Aset lebih besar dari Pasiva.</li>
+                                                            <li><b>Solusi:</b> Tambah <span className="text-emerald-300">Start Equity</span> atau <span className="text-emerald-300">Start Debt</span> di Sidebar sebesar <b>{fmt(Math.abs(diff))}</b>.</li>
                                                         </>
                                                     ) : (
                                                         <>
-                                                            <li>Tambah Aset (misal: Cash/Inventory) sebesar {fmt(Math.abs(diff))}</li>
-                                                            <li>Atau Kurangi Utang/Modal sebesar {fmt(Math.abs(diff))}</li>
+                                                            <li>Pasiva lebih besar dari Aset.</li>
+                                                            <li><b>Solusi:</b> Kurangi <span className="text-orange-300">Start Equity</span> atau <span className="text-orange-300">Start Debt</span> di Sidebar sebesar <b>{fmt(Math.abs(diff))}</b>.</li>
                                                         </>
                                                     )}
                                                 </ul>
@@ -892,7 +914,6 @@
                         </TableContainer>
                         )}
 
-                        {/* CASH FLOW TABLE */}
                         {activeTab === 'cashflow' && (
                         <TableContainer>
                             <TableHead data={monthlyData} />
@@ -902,6 +923,27 @@
                             <Row label="(Inc)/Dec Inventory" data={monthlyData} field="cf.chgInv" negRed />
                             <Row label="Inc/(Dec) Payable" data={monthlyData} field="cf.chgAp" />
                             <Row label="Cash From Ops" data={monthlyData} field="cf.cfo" bold bg />
+                            
+                            <Row label="Investing Activities" subHeader data={monthlyData} />
+                            <Row label="(-) Capex / Belanja Aset" data={monthlyData} field="cf.capex" negRed editable overrides={capexOverrides} onCellChange={handleCapexChange} />
+                            <Row label="Cash From Investing" data={monthlyData} field="cf.cfi" bold bg />
+
+                            <Row label="Financing Activities" subHeader data={monthlyData} />
+                            
+                            <Row label="(+) Debt Issuance (Terima Hutang)" data={monthlyData} field="cf.debtIn" 
+                                editable overrides={debtInOverrides} onCellChange={handleDebtInChange} />
+                            
+                            <Row label="(-) Debt Repayment (Bayar Hutang)" data={monthlyData} field="cf.debtOut" negRed
+                                editable overrides={debtOutOverrides} onCellChange={handleDebtOutChange} />
+
+                            <Row label="(+) Equity Injection (Suntik Modal)" data={monthlyData} field="cf.eqIn" 
+                                editable overrides={equityInOverrides} onCellChange={handleEquityInChange} />
+                                
+                            <Row label="(-) Equity Withdrawal (Tarik Modal)" data={monthlyData} field="cf.eqOut" negRed
+                                editable overrides={equityOutOverrides} onCellChange={handleEquityOutChange} />
+
+                            <Row label="Cash From Financing" data={monthlyData} field="cf.cff" bold bg />
+
                             <Row label="Net Cash Change" data={monthlyData} field="cf.netChange" bold borderT />
                             <Row label="Beg. Cash" data={monthlyData} field="cf.begCash" italic textGray />
                             <Row label="End. Cash" data={monthlyData} field="cf.endCash" bold bgDouble />
