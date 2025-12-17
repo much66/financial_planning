@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monthly Financial Model</title>
-    <link rel="icon" href="logo1.png" type="image/png">
     
     <!-- 1. Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -47,6 +46,7 @@
         const Edit3 = (props) => <IconWrapper {...props}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></IconWrapper>;
         const Download = (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconWrapper>;
         const Upload = (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></IconWrapper>;
+        const Lightbulb = (props) => <IconWrapper {...props}><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 16.5 8 4.5 4.5 0 0 0 12 3.5 4.5 4.5 0 0 0 7.5 8c0 1.57.81 2.92 2 3.73V14h5.59z"/></IconWrapper>;
 
         // --- HELPER FUNCTIONS ---
         
@@ -65,9 +65,7 @@
 
         const formatDecimal = (num) => {
              if (num === '' || num === null || num === undefined) return '';
-             // Limit decimals to 1 or 2 digits if it's a calculated percentage
              if (typeof num === 'number') {
-                 // Check if it has many decimals
                  if (num % 1 !== 0) {
                      return num.toFixed(1).replace('.', ',');
                  }
@@ -269,7 +267,9 @@
                 {data.map((m, i) => {
                     const val = getVal(m, field);
                     const displayVal = neg ? -val : val;
-                    const isNeg = displayVal < 0;
+                    // FIX -0: check if absolute value is very small
+                    const isNeg = displayVal < -0.01;
+                    const isZero = Math.abs(displayVal) < 0.01;
 
                     if (editable) {
                         const isOverridden = overrides && overrides[m.month] !== undefined;
@@ -303,7 +303,7 @@
                         ${(negRed || isNeg) && isNeg ? 'text-red-500' : ''}
                         ${textGray ? 'text-gray-500' : ''}
                     `}>
-                        {displayVal < 0 ? `(${fmt(Math.abs(displayVal))})` : fmt(displayVal)}
+                        {isZero ? '-' : (displayVal < 0 ? `(${fmt(Math.abs(displayVal))})` : fmt(displayVal))}
                     </td>
                     );
                 })}
@@ -329,9 +329,12 @@
                 opex_office_fixed: 0, opex_office_pct: 3,
                 opex_repair_fixed: 0, opex_repair_pct: 0.35,
                 opex_rnd_fixed: 0, opex_rnd_pct: 0.1,
-                depreciationRate: 10, taxRate: 22, annualInterestRate: 6, 
+                depreciationRate: 0.7, taxRate: 22, annualInterestRate: 6, 
                 dsi: 150, dpo: 60, 
-                startCash: 10000, startInventory: 30500, startFixedAssets: 5000,
+                // --- UPDATE: Default Start Cash = 0, Inventory = 30.500 ---
+                startCash: 0, 
+                startInventory: 30500, 
+                startFixedAssets: 5000,
                 // --- UPDATE: DEFAULT START DEBT & EQUITY = 0 ---
                 startDebt: 0, 
                 startEquity: 0, 
@@ -407,7 +410,7 @@
 
                     ["Total Operating Expenses", ...monthlyData.map(m => toReal(-m.pl.totalOpex))],
                     
-                    ["EBITDA", ...monthlyData.map(m => toReal(m.pl.ebit + m.pl.depr))], 
+                    ["EBITDA", ...monthlyData.map(m => toReal(m.pl.ebitda))], 
                     ["(-) Amortization & Depr", ...monthlyData.map(m => toReal(-m.pl.depr))],
                     ["EBIT", ...monthlyData.map(m => toReal(m.pl.ebit))],
                     ["(-) Finance Cost", ...monthlyData.map(m => toReal(-m.pl.int))],
@@ -426,15 +429,17 @@
                     ["Inc/(Dec) Trade Payable", ...monthlyData.map(m => toReal(m.cf.chgAp))],
                     ["Cash From Ops", ...monthlyData.map(m => toReal(m.cf.cfo))],
                     
+                    // --- REARRANGED INVESTING ACTIVITIES ---
                     ["Investing Activities", "", "", "", "", "", "", "", "", "", "", "", ""],
                     ["Capex (Belanja Aset)", ...monthlyData.map(m => toReal(m.cf.capex))],
+                    ["Cash In from Investment", ...monthlyData.map(m => toReal(m.cf.eqIn))],
+                    ["Cash Out from Investment", ...monthlyData.map(m => toReal(-m.cf.eqOut))],
                     ["Cash From Investing", ...monthlyData.map(m => toReal(m.cf.cfi))],
 
+                    // --- REARRANGED FINANCING ACTIVITIES ---
                     ["Financing Activities", "", "", "", "", "", "", "", "", "", "", "", ""],
-                    ["(+) Loan Issuance", ...monthlyData.map(m => toReal(m.cf.debtIn))],
-                    ["(-) Loan Repayment", ...monthlyData.map(m => toReal(-m.cf.debtOut))],
-                    ["(+) Injection Capital", ...monthlyData.map(m => toReal(m.cf.eqIn))],
-                    ["(-) Capital Withdrawal", ...monthlyData.map(m => toReal(-m.cf.eqOut))],
+                    ["Financing", ...monthlyData.map(m => toReal(m.cf.debtIn))],
+                    ["Financing Repayment", ...monthlyData.map(m => toReal(-m.cf.debtOut))],
                     ["Cash From Financing", ...monthlyData.map(m => toReal(m.cf.cff))],
                     
                     ["Net Cash Change", ...monthlyData.map(m => toReal(m.cf.netChange))],
@@ -610,20 +615,28 @@
                     const totalOpex = opex_mkt + opex_content + opex_salary + opex_rent + opex_office + opex_repair + opex_rnd;
 
                     const depr = (inputs.startFixedAssets * (inputs.depreciationRate / 100)) / 12; 
-                    const ebit = grossProfit - totalOpex - depr;
-                    const interest = (prev.debt * (inputs.annualInterestRate/100)) / 12; 
+                    
+                    const ebitda = grossProfit - totalOpex;
+                    const ebit = ebitda - depr;
+                    const debtIn = debtInOverrides[m] || 0;
+                    const eqIn = equityInOverrides[m] || 0; // CASH IN FROM INVESTMENT - Treat as LOAN inflow
+                    const interestBase = prev.debt + debtIn + eqIn; 
+                    const interest = (interestBase * (inputs.annualInterestRate/100)) / 12; 
+                    
                     const ebt = ebit - interest;
                     const tax = ebt > 0 ? ebt * (inputs.taxRate / 100) : 0;
                     const netIncome = ebt - tax;
 
-                    // CF Overrides
+                    // --- CASH FLOW INPUTS RETRIEVAL ---
                     const capex = capexOverrides[m] || 0;
-                    const debtIn = debtInOverrides[m] || 0;
+                    // Debt (Financing)
+                    // debtIn already defined
                     const debtOut = debtOutOverrides[m] || 0;
-                    const chgDebt = debtIn - debtOut;
-                    const eqIn = equityInOverrides[m] || 0;
+                    const chgDebt = debtIn - debtOut + eqIn; // eqIn adds to debt now
+                    // Equity (Investing in this context based on user request, logic remains same for balance impact)
+                    // eqIn defined above
                     const eqOut = equityOutOverrides[m] || 0;
-                    const chgEquity = eqIn - eqOut;
+                    const chgEquity = - eqOut; // eqIn moved to debt
 
                     // D. BALANCE SHEET
                     const inventory = (cogs / 30) * inputs.dsi;
@@ -633,7 +646,6 @@
                     const debt = prev.debt + chgDebt;
                     const equity = prev.equity + chgEquity;
 
-                    // --- NEW CALCS FOR BREAKDOWN ---
                     const totalLiabilities = ap + debt;
                     const totalEquity = equity + re;
 
@@ -644,8 +656,16 @@
                     const cfo_ap = (ap - prev.ap);
                     const cfo_total = cfo_ni + cfo_depr + cfo_inv + cfo_ap;
 
-                    const cfi_total = -capex; 
-                    const cff_total = chgDebt + chgEquity;
+                    // Investing Activities: Capex + Equity Changes (As per request)
+                    // Note: Ideally Equity is Financing, but user requested to group under Investing visually or logically?
+                    // Re-reading request: "capital itu saya ingin ada di bagian investing"
+                    // So we move Equity In/Out lines to Investing section in display.
+                    // But calculate totals:
+                    // CFI = -Capex + Equity In - Equity Out (If moving Capital to Investing)
+                    const cfi_total = -capex + eqIn - eqOut; 
+
+                    // Financing Activities: Debt only
+                    const cff_total = debtIn - debtOut;
                     
                     const netChange = cfo_total + cfi_total + cff_total;
                     const endCash = prev.cash + netChange;
@@ -659,7 +679,7 @@
                             cogs, gp: grossProfit, 
                             opex_mkt, opex_content, opex_salary, opex_rent, opex_office, opex_repair, opex_rnd,
                             totalOpex,
-                            depr, ebit, int: interest, tax, netIncome 
+                            ebitda, depr, ebit, int: interest, tax, netIncome 
                         },
                         bs: { 
                             cash: endCash, inventory, fixedAssets, totalAssets: endCash + inventory + fixedAssets, 
@@ -669,10 +689,11 @@
                         },
                         cf: { 
                             ni: cfo_ni, depr: cfo_depr, chgInv: cfo_inv, chgAp: cfo_ap, cfo: cfo_total, 
-                            capex, cfi: cfi_total,
+                            capex, 
                             debtIn, debtOut, chgDebt, 
                             eqIn, eqOut, chgEquity, 
-                            cff: cff_total,
+                            cfi: cfi_total, // Modified to include equity
+                            cff: cff_total, // Modified to exclude equity
                             netChange, begCash: prev.cash, endCash 
                         }
                     };
@@ -686,10 +707,26 @@
 
             const fmt = (n) => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
 
-            // --- CALCULATE TOTALS FOR DASHBOARD ---
             const totalGrossRev = monthlyData.reduce((acc, curr) => acc + curr.pl.rev, 0);
             const totalNetIncome = monthlyData.reduce((acc, curr) => acc + curr.pl.netIncome, 0);
             const netIncomeMargin = totalGrossRev ? (totalNetIncome / totalGrossRev) * 100 : 0;
+
+            // --- CAPITAL SUGGESTION LOGIC ---
+            // Find month with minimum Cash balance
+            const lowestCashMonth = monthlyData.reduce((min, curr) => curr.bs.cash < min.bs.cash ? curr : min, monthlyData[0]);
+            // If minimum cash < 0, calculate how much is needed to bring it to 0
+            const requiredCapital = lowestCashMonth.bs.cash < 0 ? Math.abs(lowestCashMonth.bs.cash) : 0;
+
+            const applyCapitalSuggestion = () => {
+                setEquityInOverrides(prev => {
+                    const currentVal = prev[1] || 0;
+                    return {
+                        ...prev,
+                        1: currentVal + requiredCapital
+                    };
+                });
+                alert(`Berhasil menambahkan Injection Capital sebesar ${fmt(requiredCapital)} Juta di Bulan 1.`);
+            };
 
             return (
                 <div className="flex flex-col h-screen bg-gray-50 text-slate-800 font-sans">
@@ -808,6 +845,30 @@
                                 </div>
                             </div>
 
+                            {/* --- CAPITAL SUGGESTION CARD --- */}
+                            {requiredCapital > 0 && (
+                                <div className="bg-yellow-50 rounded shadow-sm border border-yellow-200 p-4 flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse-slow">
+                                    <div className="flex items-start gap-3">
+                                        <div className="bg-yellow-100 p-2 rounded-full text-yellow-600 mt-1">
+                                            <Lightbulb size={24} />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-bold text-yellow-800">Saran Modal Awal (Capital Injection)</h3>
+                                            <p className="text-xs text-yellow-700 mt-1 max-w-lg">
+                                                Berdasarkan proyeksi, saldo kas Anda akan negatif sebesar <b>{fmt(requiredCapital)} Juta</b> di bulan <b>{lowestCashMonth.name}</b>.
+                                                Disarankan untuk menambah modal awal agar cashflow aman.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button 
+                                        onClick={applyCapitalSuggestion}
+                                        className="whitespace-nowrap px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold rounded shadow transition-colors"
+                                    >
+                                        Apply (+{fmt(requiredCapital)} Jt) to Month 1
+                                    </button>
+                                </div>
+                            )}
+
                             {/* --- KEY METRICS GRID --- */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <Card title="Total Net Revenue" value={fmt(monthlyData.reduce((acc, curr) => acc + curr.pl.netRevenue, 0))} sub="Juta IDR (After Fees)" color="bg-blue-50 text-blue-800" />
@@ -889,7 +950,7 @@
                             <Row label="(-) R&D" data={monthlyData} field="pl.opex_rnd" neg indent />
                             <Row label="Total Opex" data={monthlyData} field="pl.totalOpex" bold bg neg />
 
-                            <Row label="EBITDA" data={monthlyData} field="pl.ebit" bold />
+                            <Row label="EBITDA" data={monthlyData} field="pl.ebitda" bold />
                             <Row label="(-) Amortization & Depr" data={monthlyData} field="pl.depr" neg textGray />
                             <Row label="EBIT" data={monthlyData} field="pl.ebit" bold />
                             <Row label="(-) Finance Cost" data={monthlyData} field="pl.int" neg />
@@ -980,24 +1041,26 @@
                             <Row label="Inc/(Dec) Trade Payable" data={monthlyData} field="cf.chgAp" />
                             <Row label="Cash From Ops" data={monthlyData} field="cf.cfo" bold bg />
                             
+                            {/* --- MOVED INVESTING: CAPEX & CAPITAL --- */}
                             <Row label="Investing Activities" subHeader data={monthlyData} />
                             <Row label="(-) Capex / Belanja Aset" data={monthlyData} field="cf.capex" negRed editable overrides={capexOverrides} onCellChange={handleCapexChange} />
-                            <Row label="Cash From Investing" data={monthlyData} field="cf.cfi" bold bg />
-
-                            <Row label="Financing Activities" subHeader data={monthlyData} />
                             
-                            {/* Updated Labels */}
-                            <Row label="(+) Loan Issuance (Terima Pinjaman)" data={monthlyData} field="cf.debtIn" 
-                                editable overrides={debtInOverrides} onCellChange={handleDebtInChange} />
-                            
-                            <Row label="(-) Loan Repayment (Bayar Pinjaman)" data={monthlyData} field="cf.debtOut" negRed
-                                editable overrides={debtOutOverrides} onCellChange={handleDebtOutChange} />
-
-                            <Row label="(+) Injection Capital (Suntik Modal)" data={monthlyData} field="cf.eqIn" 
+                            <Row label="(+) Cash In from Investment (Suntik Modal)" data={monthlyData} field="cf.eqIn" 
                                 editable overrides={equityInOverrides} onCellChange={handleEquityInChange} />
                                 
-                            <Row label="(-) Capital Withdrawal (Tarik Modal)" data={monthlyData} field="cf.eqOut" negRed
+                            <Row label="(-) Cash Out from Investment (Tarik Modal)" data={monthlyData} field="cf.eqOut" negRed
                                 editable overrides={equityOutOverrides} onCellChange={handleEquityOutChange} />
+
+                            <Row label="Cash From Investing" data={monthlyData} field="cf.cfi" bold bg />
+
+                            {/* --- MOVED FINANCING: DEBT ONLY --- */}
+                            <Row label="Financing Activities" subHeader data={monthlyData} />
+                            
+                            <Row label="(+) Financing (Pinjaman Masuk)" data={monthlyData} field="cf.debtIn" 
+                                editable overrides={debtInOverrides} onCellChange={handleDebtInChange} />
+                            
+                            <Row label="(-) Financing Repayment (Bayar Pinjaman)" data={monthlyData} field="cf.debtOut" negRed
+                                editable overrides={debtOutOverrides} onCellChange={handleDebtOutChange} />
 
                             <Row label="Cash From Financing" data={monthlyData} field="cf.cff" bold bg />
 
